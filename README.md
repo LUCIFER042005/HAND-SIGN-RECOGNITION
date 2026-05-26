@@ -23,7 +23,7 @@ A Python-based computer vision application that detects, tracks, and recognizes 
 ## 📸 How It Works
 The system captures video frames from the webcam, processes the frames using OpenCV, and passes them to MediaPipe's Hand Landmark model. It tracks key coordinate points (landmarks) on the hand to accurately identify specific signs and gestures.
 
-*(Tip: Add a GIF or Screenshot of your project working right here!)*
+
 
 ---
 
