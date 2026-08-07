@@ -3,72 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Sign Recognition</title>
+    <title>Hand Sign Recognition & Sentence Builder</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background: #f0f2f5; padding: 20px; margin: 0; }
-        .card { max-width: 400px; margin: 30px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1 { color: #1a73e8; font-size: 22px; margin-bottom: 20px; }
-        input[type="file"] { display: none; }
-        .upload-btn { background: #1a73e8; color: white; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-block; font-weight: bold; margin-bottom: 15px; }
-        .predict-btn { background: #34a853; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; }
-        #preview { max-width: 100%; border-radius: 8px; margin-top: 15px; display: none; }
-        #result { margin-top: 20px; font-size: 22px; font-weight: bold; color: #202124; min-height: 30px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; text-align: center; }
+        .container { max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        h1 { color: #4af6c6; margin-bottom: 10px; font-size: 24px; }
+        .video-wrapper { position: relative; width: 100%; max-width: 480px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #000; }
+        video { width: 100%; height: auto; transform: scaleX(-1); display: block; }
+        canvas { display: none; }
+        .prediction-box { margin: 15px 0; font-size: 22px; font-weight: bold; background: #2a2a2a; padding: 12px; border-radius: 8px; border: 1px solid #333; }
+        .predicted-char { color: #4af6c6; font-size: 32px; font-weight: bold; margin-left: 8px; }
+        .sentence-container { background: #2a2a2a; padding: 15px; border-radius: 8px; margin-top: 15px; text-align: left; }
+        .sentence-label { font-size: 14px; color: #aaa; margin-bottom: 5px; }
+        .sentence-box { min-height: 50px; font-size: 24px; font-weight: 500; color: #fff; word-wrap: break-word; border-bottom: 2px solid #4af6c6; padding: 5px 0; }
+        .controls { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; justify-content: center; }
+        button { background: #333; color: white; border: 1px solid #555; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #444; }
+        button.primary { background: #4af6c6; color: #121212; border: none; }
+        button.primary:hover { background: #3be0b3; }
+        button.danger { background: #ff4d4d; border: none; }
+        button.danger:hover { background: #e03e3e; }
+        .toggle-container { margin: 15px 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>Hand Sign Recognition</h1>
 
-        <label for="imageInput" class="upload-btn">📷 Take or Upload Photo</label>
-        <input type="file" id="imageInput" accept="image/*" capture="environment" onchange="previewImage()">
+<div class="container">
+    <h1>Hand Sign Recognition</h1>
 
-        <img id="preview" alt="Selected Hand Sign">
+    <div class="video-wrapper">
+        <video id="webcam" autoplay playsinline></video>
+    </div>
+    <canvas id="canvas"></canvas>
 
-        <button class="predict-btn" onclick="predictSign()">Detect Sign</button>
-
-        <div id="result"></div>
+    <div class="prediction-box">
+        Current Sign: <span id="currentSign" class="predicted-char">-</span>
     </div>
 
-    <script>
-        function previewImage() {
-            const input = document.getElementById('imageInput');
-            const preview = document.getElementById('preview');
-            if (input.files && input.files[0]) {
-                preview.src = URL.createObjectURL(input.files[0]);
-                preview.style.display = 'block';
-            }
+    <div class="sentence-container">
+        <div class="sentence-label">Sentence Builder</div>
+        <div id="sentenceBox" class="sentence-box"></div>
+
+        <div class="controls">
+            <button class="primary" onclick="addCurrentSign()">Add Sign</button>
+            <button onclick="addSpace()">Space [ ]</button>
+            <button onclick="backspace()">Backspace ⌫</button>
+            <button class="danger" onclick="clearSentence()">Clear 🗑️</button>
+        </div>
+    </div>
+
+    <div class="toggle-container">
+        <label>
+            <input type="checkbox" id="autoDetect" checked> Auto-Detect Stream
+        </label>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const currentSignSpan = document.getElementById('currentSign');
+    const sentenceBox = document.getElementById('sentenceBox');
+    const autoDetectCheckbox = document.getElementById('autoDetect');
+
+    let currentPredictedSign = "";
+    let isProcessing = false;
+
+    // Start Webcam Stream
+    async function startWebcam() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+            });
+            video.srcObject = stream;
+        } catch (err) {
+            alert("Error accessing camera: " + err.message);
+        }
+    }
+
+    // Capture Frame and send to FastAPI /predict
+    async function processFrame() {
+        if (isProcessing || !video.videoWidth) return;
+
+        if (!autoDetectCheckbox.checked) {
+            return;
         }
 
-        async function predictSign() {
-            const input = document.getElementById('imageInput');
-            const resultDiv = document.getElementById('result');
+        isProcessing = true;
+        const ctx = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
 
-            if (!input.files[0]) {
-                alert("Please take or select a photo first!");
+        // Draw image onto canvas
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Convert frame to Blob
+        canvas.toBlob(async (blob) => {
+            if (!blob) {
+                isProcessing = false;
                 return;
             }
 
-            resultDiv.innerText = "Analyzing sign...";
-
             const formData = new FormData();
-            formData.append("file", input.files[0]);
+            formData.append('file', blob, 'frame.jpg');
 
             try {
-                const response = await fetch("/predict", {
-                    method: "POST",
+                const response = await fetch('/predict', {
+                    method: 'POST',
                     body: formData
                 });
-
                 const data = await response.json();
-                if (data.success) {
-                    resultDiv.innerText = `Detected Sign: ${data.prediction}`;
+
+                if (data.success && data.prediction) {
+                    currentPredictedSign = data.prediction;
+                    currentSignSpan.innerText = currentPredictedSign;
                 } else {
-                    resultDiv.innerText = "No hand sign detected.";
+                    currentPredictedSign = "";
+                    currentSignSpan.innerText = "-";
                 }
-            } catch (error) {
-                resultDiv.innerText = "Error connecting to server.";
+            } catch (err) {
+                console.error("Prediction error:", err);
+            } finally {
+                isProcessing = false;
             }
+        }, 'image/jpeg', 0.8);
+    }
+
+    // Sentence Builder Actions
+    function addCurrentSign() {
+        if (currentPredictedSign) {
+            sentenceBox.innerText += currentPredictedSign;
         }
-    </script>
+    }
+
+    function addSpace() {
+        sentenceBox.innerText += " ";
+    }
+
+    function backspace() {
+        sentenceBox.innerText = sentenceBox.innerText.slice(0, -1);
+    }
+
+    function clearSentence() {
+        sentenceBox.innerText = "";
+    }
+
+    // Initialize
+    startWebcam();
+    setInterval(processFrame, 800); // Sends frame every 800ms to allow smooth API prediction
+</script>
+
 </body>
 </html>
