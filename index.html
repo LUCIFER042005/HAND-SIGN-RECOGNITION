@@ -23,7 +23,9 @@
         button.primary:hover { background: #3be0b3; }
         button.danger { background: #ff4d4d; border: none; }
         button.danger:hover { background: #e03e3e; }
-        .toggle-container { margin: 15px 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .toggle-container { margin: 15px 0; display: flex; align-items: center; justify-content: center; gap: 15px; font-size: 14px; }
+        .status-indicator { font-size: 12px; color: #888; margin-top: 4px; }
+        .shortcut-badge { background: #333; color: #4af6c6; padding: 2px 8px; border-radius: 4px; border: 1px solid #4af6c6; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -38,6 +40,7 @@
 
     <div class="prediction-box">
         Current Sign: <span id="currentSign" class="predicted-char">-</span>
+        <div id="statusIndicator" class="status-indicator">Press <span class="shortcut-badge">S</span> to start detection</div>
     </div>
 
     <div class="sentence-container">
@@ -45,7 +48,7 @@
         <div id="sentenceBox" class="sentence-box"></div>
 
         <div class="controls">
-            <button class="primary" onclick="addCurrentSign()">Add Sign</button>
+            <button class="primary" onclick="addCurrentSign()">Add Sign Now</button>
             <button onclick="addSpace()">Space [ ]</button>
             <button onclick="backspace()">Backspace ⌫</button>
             <button class="danger" onclick="clearSentence()">Clear 🗑️</button>
@@ -54,7 +57,10 @@
 
     <div class="toggle-container">
         <label>
-            <input type="checkbox" id="autoDetect" checked> Auto-Detect Stream
+            <input type="checkbox" id="autoDetect"> Detection Active (<span class="shortcut-badge">S</span>)
+        </label>
+        <label>
+            <input type="checkbox" id="autoAppend" checked> Auto-Append Held Sign
         </label>
     </div>
 </div>
@@ -65,9 +71,14 @@
     const currentSignSpan = document.getElementById('currentSign');
     const sentenceBox = document.getElementById('sentenceBox');
     const autoDetectCheckbox = document.getElementById('autoDetect');
+    const autoAppendCheckbox = document.getElementById('autoAppend');
+    const statusIndicator = document.getElementById('statusIndicator');
 
     let currentPredictedSign = "";
+    let lastSign = "";
+    let signHoldStartTime = null;
     let isProcessing = false;
+    const HOLD_THRESHOLD_MS = 1200;
 
     // Start Webcam Stream
     async function startWebcam() {
@@ -81,23 +92,31 @@
         }
     }
 
+    // Toggle Detection via Keyboard 'S' Key
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 's' || e.key === 'S') {
+            autoDetectCheckbox.checked = !autoDetectCheckbox.checked;
+            if (autoDetectCheckbox.checked) {
+                statusIndicator.innerText = "Detection Started!";
+            } else {
+                currentSignSpan.innerText = "-";
+                statusIndicator.innerText = "Detection Paused. Press 'S' to resume.";
+                resetHoldTimer();
+            }
+        }
+    });
+
     // Capture Frame and send to FastAPI /predict
     async function processFrame() {
-        if (isProcessing || !video.videoWidth) return;
-
-        if (!autoDetectCheckbox.checked) {
-            return;
-        }
+        if (isProcessing || !video.videoWidth || !autoDetectCheckbox.checked) return;
 
         isProcessing = true;
         const ctx = canvas.getContext('2d');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        // Draw image onto canvas
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Convert frame to Blob
         canvas.toBlob(async (blob) => {
             if (!blob) {
                 isProcessing = false;
@@ -117,9 +136,12 @@
                 if (data.success && data.prediction) {
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
+
+                    handleAutoAppend(currentPredictedSign);
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
+                    resetHoldTimer();
                 }
             } catch (err) {
                 console.error("Prediction error:", err);
@@ -129,10 +151,40 @@
         }, 'image/jpeg', 0.8);
     }
 
-    // Sentence Builder Actions
+    function handleAutoAppend(sign) {
+        if (!autoAppendCheckbox.checked) {
+            statusIndicator.innerText = "Auto-append disabled";
+            return;
+        }
+
+        const now = Date.now();
+
+        if (sign === lastSign) {
+            const elapsed = now - signHoldStartTime;
+            if (elapsed >= HOLD_THRESHOLD_MS) {
+                sentenceBox.innerText += sign;
+                statusIndicator.innerText = `Added '${sign}' to sentence!`;
+                signHoldStartTime = now + 1000;
+            } else {
+                const percent = Math.round((elapsed / HOLD_THRESHOLD_MS) * 100);
+                statusIndicator.innerText = `Holding '${sign}'... ${percent}%`;
+            }
+        } else {
+            lastSign = sign;
+            signHoldStartTime = now;
+            statusIndicator.innerText = `Holding '${sign}'...`;
+        }
+    }
+
+    function resetHoldTimer() {
+        lastSign = "";
+        signHoldStartTime = null;
+    }
+
     function addCurrentSign() {
         if (currentPredictedSign) {
             sentenceBox.innerText += currentPredictedSign;
+            statusIndicator.innerText = `Added '${currentPredictedSign}' manually`;
         }
     }
 
@@ -146,11 +198,12 @@
 
     function clearSentence() {
         sentenceBox.innerText = "";
+        resetHoldTimer();
     }
 
     // Initialize
     startWebcam();
-    setInterval(processFrame, 800); // Sends frame every 800ms to allow smooth API prediction
+    setInterval(processFrame, 600);
 </script>
 
 </body>
