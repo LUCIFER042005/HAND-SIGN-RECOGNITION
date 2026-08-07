@@ -3,6 +3,7 @@ import pickle
 import cv2
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 import mediapipe as mp
 import numpy as np
 from PIL import Image
@@ -40,6 +41,11 @@ def load_resources():
 
 
 @app.get("/")
+def serve_frontend():
+    return FileResponse("index.html")
+
+
+@app.get("/health")
 def health_check():
     return {"status": "online", "model_loaded": model is not None}
 

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Sign Recognition</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f0f2f5; padding: 20px; margin: 0; }
+        .card { max-width: 400px; margin: 30px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #1a73e8; font-size: 22px; margin-bottom: 20px; }
+        input[type="file"] { display: none; }
+        .upload-btn { background: #1a73e8; color: white; padding: 12px 24px; border-radius: 8px; cursor: pointer; display: inline-block; font-weight: bold; margin-bottom: 15px; }
+        .predict-btn { background: #34a853; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-top: 15px; }
+        #preview { max-width: 100%; border-radius: 8px; margin-top: 15px; display: none; }
+        #result { margin-top: 20px; font-size: 22px; font-weight: bold; color: #202124; min-height: 30px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Hand Sign Recognition</h1>
+
+        <label for="imageInput" class="upload-btn">📷 Take or Upload Photo</label>
+        <input type="file" id="imageInput" accept="image/*" capture="environment" onchange="previewImage()">
+
+        <img id="preview" alt="Selected Hand Sign">
+
+        <button class="predict-btn" onclick="predictSign()">Detect Sign</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function previewImage() {
+            const input = document.getElementById('imageInput');
+            const preview = document.getElementById('preview');
+            if (input.files && input.files[0]) {
+                preview.src = URL.createObjectURL(input.files[0]);
+                preview.style.display = 'block';
+            }
+        }
+
+        async function predictSign() {
+            const input = document.getElementById('imageInput');
+            const resultDiv = document.getElementById('result');
+
+            if (!input.files[0]) {
+                alert("Please take or select a photo first!");
+                return;
+            }
+
+            resultDiv.innerText = "Analyzing sign...";
+
+            const formData = new FormData();
+            formData.append("file", input.files[0]);
+
+            try {
+                const response = await fetch("/predict", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    resultDiv.innerText = `Detected Sign: ${data.prediction}`;
+                } else {
+                    resultDiv.innerText = "No hand sign detected.";
+                }
+            } catch (error) {
+                resultDiv.innerText = "Error connecting to server.";
+            }
+        }
+    </script>
+</body>
+</html>
