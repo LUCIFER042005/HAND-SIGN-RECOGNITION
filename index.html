@@ -40,7 +40,7 @@
 
     <div class="prediction-box">
         Current Sign: <span id="currentSign" class="predicted-char">-</span>
-        <div id="statusIndicator" class="status-indicator">Press <span class="shortcut-badge">S</span> to start detection</div>
+        <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press <span class="shortcut-badge">S</span> to toggle.</div>
     </div>
 
     <div class="sentence-container">
@@ -57,10 +57,7 @@
 
     <div class="toggle-container">
         <label>
-            <input type="checkbox" id="autoDetect"> Detection Active (<span class="shortcut-badge">S</span>)
-        </label>
-        <label>
-            <input type="checkbox" id="autoAppend" checked> Auto-Append Held Sign
+            <input type="checkbox" id="sentenceBuilderToggle"> Sentence Builder Active (<span class="shortcut-badge">S</span>)
         </label>
     </div>
 </div>
@@ -70,8 +67,7 @@
     const canvas = document.getElementById('canvas');
     const currentSignSpan = document.getElementById('currentSign');
     const sentenceBox = document.getElementById('sentenceBox');
-    const autoDetectCheckbox = document.getElementById('autoDetect');
-    const autoAppendCheckbox = document.getElementById('autoAppend');
+    const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
 
     let currentPredictedSign = "";
@@ -92,23 +88,35 @@
         }
     }
 
-    // Toggle Detection via Keyboard 'S' Key
+    // Toggle Sentence Builder via 'S' Key
     window.addEventListener('keydown', (e) => {
         if (e.key === 's' || e.key === 'S') {
-            autoDetectCheckbox.checked = !autoDetectCheckbox.checked;
-            if (autoDetectCheckbox.checked) {
-                statusIndicator.innerText = "Detection Started!";
-            } else {
-                currentSignSpan.innerText = "-";
-                statusIndicator.innerText = "Detection Paused. Press 'S' to resume.";
+            sentenceBuilderToggle.checked = !sentenceBuilderToggle.checked;
+            updateStatusText();
+            if (!sentenceBuilderToggle.checked) {
                 resetHoldTimer();
             }
         }
     });
 
+    sentenceBuilderToggle.addEventListener('change', () => {
+        updateStatusText();
+        if (!sentenceBuilderToggle.checked) {
+            resetHoldTimer();
+        }
+    });
+
+    function updateStatusText() {
+        if (sentenceBuilderToggle.checked) {
+            statusIndicator.innerText = "Sentence Builder ACTIVE. Hold sign steady to append.";
+        } else {
+            statusIndicator.innerText = "Sentence Builder OFF. Press 'S' to start appending.";
+        }
+    }
+
     // Capture Frame and send to FastAPI /predict
     async function processFrame() {
-        if (isProcessing || !video.videoWidth || !autoDetectCheckbox.checked) return;
+        if (isProcessing || !video.videoWidth) return;
 
         isProcessing = true;
         const ctx = canvas.getContext('2d');
@@ -135,9 +143,13 @@
 
                 if (data.success && data.prediction) {
                     currentPredictedSign = data.prediction;
+                    // ALWAYS display detected sign on screen
                     currentSignSpan.innerText = currentPredictedSign;
 
-                    handleAutoAppend(currentPredictedSign);
+                    // Only handle auto-appending if sentence builder is toggled ON
+                    if (sentenceBuilderToggle.checked) {
+                        handleAutoAppend(currentPredictedSign);
+                    }
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
@@ -152,11 +164,6 @@
     }
 
     function handleAutoAppend(sign) {
-        if (!autoAppendCheckbox.checked) {
-            statusIndicator.innerText = "Auto-append disabled";
-            return;
-        }
-
         const now = Date.now();
 
         if (sign === lastSign) {
@@ -179,6 +186,7 @@
     function resetHoldTimer() {
         lastSign = "";
         signHoldStartTime = null;
+        updateStatusText();
     }
 
     function addCurrentSign() {
