@@ -14,6 +14,7 @@ from PIL import Image
 
 app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 
+# Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,10 +23,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Resolve absolute path for project files
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INDEX_PATH = os.path.join(BASE_DIR, "index.html")
+MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 
-# Environment Variables
+# --- MySQL Configuration from Environment Variables ---
 MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
@@ -44,13 +47,13 @@ def get_db_connection():
         port=MYSQL_PORT,
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=True,
-        ssl={'ssl': {}}
+        ssl={'ssl': {}}  # Enables SSL required by cloud hosts like Aiven
     )
 
 
 def init_db():
     if not MYSQL_HOST:
-        print("MYSQL_HOST not provided.")
+        print("MYSQL_HOST environment variable not found. Database initialization skipped.")
         return
     try:
         conn = get_db_connection()
@@ -64,9 +67,9 @@ def init_db():
             )
         """)
         conn.close()
-        print("Cloud MySQL initialized!")
+        print("Permanent Cloud MySQL Database initialized successfully!")
     except Exception as e:
-        print(f"Database init error: {e}")
+        print(f"Database initialization error: {e}")
 
 
 class UserAuth(BaseModel):
@@ -78,6 +81,7 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
+# --- Global ML Model Variables ---
 model = None
 hands = None
 
@@ -87,20 +91,27 @@ def load_resources():
     global model, hands
     init_db()
 
-    with open(os.path.join(BASE_DIR, "model.p"), "rb") as f:
-        model_dict = pickle.load(f)
-        model = model_dict["model"]
+    # Load trained model using absolute path
+    if os.path.exists(MODEL_PATH):
+        with open(MODEL_PATH, "rb") as f:
+            model_dict = pickle.load(f)
+            model = model_dict["model"]
+    else:
+        print(f"Warning: Model file not found at {MODEL_PATH}")
 
+    # Initialize MediaPipe Hands
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=True, max_num_hands=1, min_detection_confidence=0.3
     )
+    print("Model and MediaPipe initialized successfully!")
 
 
+# --- Authentication Endpoints ---
 @app.post("/register")
 def register(user: UserAuth):
     if not MYSQL_HOST:
-        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+        raise HTTPException(status_code=500, detail="Database credentials missing on server (MYSQL_HOST).")
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -116,13 +127,13 @@ def register(user: UserAuth):
     except pymysql.err.IntegrityError:
         raise HTTPException(status_code=400, detail="Username already exists.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @app.post("/login")
 def login(user: UserAuth):
     if not MYSQL_HOST:
-        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+        raise HTTPException(status_code=500, detail="Database credentials missing on server (MYSQL_HOST).")
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -140,7 +151,7 @@ def login(user: UserAuth):
         else:
             raise HTTPException(status_code=401, detail="Invalid username or password.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @app.get("/users/count")
@@ -158,11 +169,12 @@ def get_user_count():
         return {"total_users": 0, "error": str(e)}
 
 
+# --- Serve Frontend Page ---
 @app.get("/")
 def serve_frontend():
     if os.path.exists(INDEX_PATH):
         return FileResponse(INDEX_PATH)
-    return {"error": "index.html file missing"}
+    return {"error": "index.html file missing on server"}
 
 
 @app.get("/health")
@@ -170,8 +182,12 @@ def health_check():
     return {"status": "online", "model_loaded": model is not None}
 
 
+# --- Prediction Endpoint ---
 @app.post("/predict")
 async def predict_sign(file: UploadFile = File(...)):
+    if not model:
+        raise HTTPException(status_code=500, detail="Model is not loaded.")
+
     contents = await file.read()
     image = Image.open(io.BytesIO(contents)).convert("RGB")
     frame = np.array(image)
