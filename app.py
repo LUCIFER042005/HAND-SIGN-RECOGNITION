@@ -169,6 +169,22 @@ def get_user_count():
         return {"total_users": 0, "error": str(e)}
 
 
+# --- Admin Endpoint to View All Users ---
+@app.get("/admin/users")
+def get_all_users():
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, created_at FROM users")
+        users = cursor.fetchall()
+        conn.close()
+        return {"total_users": len(users), "registered_users": users}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
 # --- Serve Frontend Page ---
 @app.get("/")
 def serve_frontend():
