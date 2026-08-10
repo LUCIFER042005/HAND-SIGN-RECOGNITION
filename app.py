@@ -1,16 +1,19 @@
 import io
 import pickle
-import cv2
-from fastapi import FastAPI, File, UploadFile
+import hashlib
+import os
+from datetime import datetime
+import pymysql
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 import mediapipe as mp
 import numpy as np
 from PIL import Image
 
 app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 
-# Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,7 +22,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables for model and mediapipe
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INDEX_PATH = os.path.join(BASE_DIR, "index.html")
+
+# Environment Variables
+MYSQL_HOST = os.getenv("MYSQL_HOST")
+MYSQL_USER = os.getenv("MYSQL_USER")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
+MYSQL_DB = os.getenv("MYSQL_DB", "defaultdb")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", 3306)) if os.getenv("MYSQL_PORT") else 3306
+
+
+def get_db_connection():
+    if not MYSQL_HOST:
+        return None
+    return pymysql.connect(
+        host=MYSQL_HOST,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        database=MYSQL_DB,
+        port=MYSQL_PORT,
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+        ssl={'ssl': {}}
+    )
+
+
+def init_db():
+    if not MYSQL_HOST:
+        print("MYSQL_HOST not provided.")
+        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                created_at DATETIME NOT NULL
+            )
+        """)
+        conn.close()
+        print("Cloud MySQL initialized!")
+    except Exception as e:
+        print(f"Database init error: {e}")
+
+
+class UserAuth(BaseModel):
+    username: str
+    password: str
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
 model = None
 hands = None
 
@@ -27,22 +85,84 @@ hands = None
 @app.on_event("startup")
 def load_resources():
     global model, hands
-    # Load your trained model
-    with open("./model.p", "rb") as f:
+    init_db()
+
+    with open(os.path.join(BASE_DIR, "model.p"), "rb") as f:
         model_dict = pickle.load(f)
         model = model_dict["model"]
 
-    # Initialize MediaPipe Hands
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=True, max_num_hands=1, min_detection_confidence=0.3
     )
-    print("Model and MediaPipe initialized successfully!")
+
+
+@app.post("/register")
+def register(user: UserAuth):
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        hashed_pwd = hash_password(user.password)
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute(
+            "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
+            (user.username, hashed_pwd, created_at)
+        )
+        conn.close()
+        return {"success": True, "message": "Account created successfully!"}
+    except pymysql.err.IntegrityError:
+        raise HTTPException(status_code=400, detail="Username already exists.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+
+
+@app.post("/login")
+def login(user: UserAuth):
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        hashed_pwd = hash_password(user.password)
+
+        cursor.execute(
+            "SELECT id, username FROM users WHERE username = %s AND password = %s",
+            (user.username, hashed_pwd)
+        )
+        db_user = cursor.fetchone()
+        conn.close()
+
+        if db_user:
+            return {"success": True, "username": db_user["username"]}
+        else:
+            raise HTTPException(status_code=401, detail="Invalid username or password.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+
+
+@app.get("/users/count")
+def get_user_count():
+    if not MYSQL_HOST:
+        return {"total_users": 0}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) AS total FROM users")
+        result = cursor.fetchone()
+        conn.close()
+        return {"total_users": result["total"]}
+    except Exception as e:
+        return {"total_users": 0, "error": str(e)}
 
 
 @app.get("/")
 def serve_frontend():
-    return FileResponse("index.html")
+    if os.path.exists(INDEX_PATH):
+        return FileResponse(INDEX_PATH)
+    return {"error": "index.html file missing"}
 
 
 @app.get("/health")
@@ -56,7 +176,6 @@ async def predict_sign(file: UploadFile = File(...)):
     image = Image.open(io.BytesIO(contents)).convert("RGB")
     frame = np.array(image)
 
-    # Convert RGB for MediaPipe processing
     results = hands.process(frame)
 
     if not results.multi_hand_landmarks:
@@ -72,7 +191,6 @@ async def predict_sign(file: UploadFile = File(...)):
 
     hand_landmarks = results.multi_hand_landmarks[0]
 
-    # Extract coordinates (matching your exact training logic)
     for i in range(len(hand_landmarks.landmark)):
         x_.append(hand_landmarks.landmark[i].x)
         y_.append(hand_landmarks.landmark[i].y)
@@ -81,7 +199,6 @@ async def predict_sign(file: UploadFile = File(...)):
         data_aux.append(hand_landmarks.landmark[i].x - min(x_))
         data_aux.append(hand_landmarks.landmark[i].y - min(y_))
 
-    # Predict using trained RandomForest
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
 
