@@ -7,7 +7,17 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; text-align: center; }
         .container { max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-        h1 { color: #4af6c6; margin-bottom: 10px; font-size: 24px; }
+        h1 { color: #4af6c6; margin-bottom: 5px; font-size: 24px; }
+        .user-counter { font-size: 13px; color: #aaa; margin-bottom: 20px; }
+        .user-counter span { color: #4af6c6; font-weight: bold; }
+
+        /* Auth Styles */
+        .auth-card { max-width: 360px; margin: 30px auto; background: #2a2a2a; padding: 25px; border-radius: 12px; border: 1px solid #333; }
+        .auth-card input { width: 90%; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #444; background: #121212; color: white; }
+        .auth-btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
+
+        /* App Styles */
+        #appSection { display: none; }
         .video-wrapper { position: relative; width: 100%; max-width: 480px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #000; }
         video { width: 100%; height: auto; transform: scaleX(-1); display: block; }
         canvas { display: none; }
@@ -26,43 +36,72 @@
         .toggle-container { margin: 15px 0; display: flex; align-items: center; justify-content: center; gap: 15px; font-size: 14px; }
         .status-indicator { font-size: 12px; color: #888; margin-top: 4px; }
         .shortcut-badge { background: #333; color: #4af6c6; padding: 2px 8px; border-radius: 4px; border: 1px solid #4af6c6; font-weight: bold; }
+        .user-bar { display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 8px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <h1>Hand Sign Recognition</h1>
+    <div class="user-counter">👥 Total Registered Users: <span id="totalUserCount">0</span></div>
 
-    <div class="video-wrapper">
-        <video id="webcam" autoplay playsinline></video>
-    </div>
-    <canvas id="canvas"></canvas>
+    <!-- LOGIN / REGISTER SECTION -->
+    <div id="authSection" class="auth-card">
+        <h2 id="authTitle" style="margin-top:0; color:#4af6c6;">Login</h2>
+        <input type="text" id="username" placeholder="Username" required><br>
+        <input type="password" id="password" placeholder="Password" required><br>
 
-    <div class="prediction-box">
-        Current Sign: <span id="currentSign" class="predicted-char">-</span>
-        <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press <span class="shortcut-badge">S</span> to toggle.</div>
-    </div>
-
-    <div class="sentence-container">
-        <div class="sentence-label">Sentence Builder</div>
-        <div id="sentenceBox" class="sentence-box"></div>
-
-        <div class="controls">
-            <button class="primary" onclick="addCurrentSign()">Add Sign Now</button>
-            <button onclick="addSpace()">Space [ ]</button>
-            <button onclick="backspace()">Backspace ⌫</button>
-            <button class="danger" onclick="clearSentence()">Clear 🗑️</button>
+        <div class="auth-btn-group">
+            <button class="primary" onclick="handleLogin()">Login</button>
+            <button onclick="handleRegister()">Register</button>
         </div>
+        <p id="authMsg" style="font-size: 12px; color: #ff4d4d; margin-top: 10px;"></p>
     </div>
 
-    <div class="toggle-container">
-        <label>
-            <input type="checkbox" id="sentenceBuilderToggle"> Sentence Builder Active (<span class="shortcut-badge">S</span>)
-        </label>
+    <!-- MAIN APP SECTION -->
+    <div id="appSection">
+        <div class="user-bar">
+            <span>Welcome, <b id="loggedInUser" style="color:#4af6c6;">User</b>!</span>
+            <button onclick="handleLogout()" style="padding: 4px 10px; font-size: 12px;">Logout</button>
+        </div>
+
+        <div class="video-wrapper">
+            <video id="webcam" autoplay playsinline></video>
+        </div>
+        <canvas id="canvas"></canvas>
+
+        <div class="prediction-box">
+            Current Sign: <span id="currentSign" class="predicted-char">-</span>
+            <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press <span class="shortcut-badge">S</span> to toggle.</div>
+        </div>
+
+        <div class="sentence-container">
+            <div class="sentence-label">Sentence Builder</div>
+            <div id="sentenceBox" class="sentence-box"></div>
+
+            <div class="controls">
+                <button class="primary" onclick="addCurrentSign()">Add Sign Now</button>
+                <button onclick="addSpace()">Space [ ]</button>
+                <button onclick="backspace()">Backspace ⌫</button>
+                <button class="danger" onclick="clearSentence()">Clear 🗑️</button>
+            </div>
+        </div>
+
+        <div class="toggle-container">
+            <label>
+                <input type="checkbox" id="sentenceBuilderToggle"> Sentence Builder Active (<span class="shortcut-badge">S</span>)
+            </label>
+        </div>
     </div>
 </div>
 
 <script>
+    const authSection = document.getElementById('authSection');
+    const appSection = document.getElementById('appSection');
+    const authMsg = document.getElementById('authMsg');
+    const loggedInUserSpan = document.getElementById('loggedInUser');
+    const totalUserCountSpan = document.getElementById('totalUserCount');
+
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
     const currentSignSpan = document.getElementById('currentSign');
@@ -74,7 +113,92 @@
     let lastSign = "";
     let signHoldStartTime = null;
     let isProcessing = false;
+    let processIntervalId = null;
     const HOLD_THRESHOLD_MS = 1200;
+
+    // Fetch Total User Count
+    async function fetchUserCount() {
+        try {
+            const res = await fetch('/users/count');
+            const data = await res.json();
+            if (data.total_users !== undefined) {
+                totalUserCountSpan.innerText = data.total_users;
+            }
+        } catch (err) {
+            console.error("Failed to fetch user count", err);
+        }
+    }
+
+    // Auth Actions
+    async function handleRegister() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        if (!username || !password) {
+            authMsg.style.color = "#ff4d4d";
+            authMsg.innerText = "Please enter both username and password.";
+            return;
+        }
+
+        try {
+            const res = await fetch('/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                authMsg.style.color = "#4af6c6";
+                authMsg.innerText = "Account created! You can now Login.";
+                fetchUserCount();
+            } else {
+                authMsg.style.color = "#ff4d4d";
+                authMsg.innerText = data.detail || "Registration failed.";
+            }
+        } catch (err) {
+            authMsg.style.color = "#ff4d4d";
+            authMsg.innerText = "Network error. Please try again.";
+        }
+    }
+
+    async function handleLogin() {
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        if (!username || !password) {
+            authMsg.style.color = "#ff4d4d";
+            authMsg.innerText = "Please enter both username and password.";
+            return;
+        }
+
+        try {
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                authSection.style.display = 'none';
+                appSection.style.display = 'block';
+                loggedInUserSpan.innerText = data.username;
+
+                startWebcam();
+                if (!processIntervalId) {
+                    processIntervalId = setInterval(processFrame, 600);
+                }
+            } else {
+                authMsg.style.color = "#ff4d4d";
+                authMsg.innerText = data.detail || "Login failed.";
+            }
+        } catch (err) {
+            authMsg.style.color = "#ff4d4d";
+            authMsg.innerText = "Network error. Please try again.";
+        }
+    }
+
+    function handleLogout() {
+        if (processIntervalId) clearInterval(processIntervalId);
+        window.location.reload();
+    }
 
     // Start Webcam Stream
     async function startWebcam() {
@@ -88,22 +212,18 @@
         }
     }
 
-    // Toggle Sentence Builder via 'S' Key
+    // Hotkey Controls
     window.addEventListener('keydown', (e) => {
-        if (e.key === 's' || e.key === 'S') {
+        if (appSection.style.display === 'block' && (e.key === 's' || e.key === 'S')) {
             sentenceBuilderToggle.checked = !sentenceBuilderToggle.checked;
             updateStatusText();
-            if (!sentenceBuilderToggle.checked) {
-                resetHoldTimer();
-            }
+            if (!sentenceBuilderToggle.checked) resetHoldTimer();
         }
     });
 
     sentenceBuilderToggle.addEventListener('change', () => {
         updateStatusText();
-        if (!sentenceBuilderToggle.checked) {
-            resetHoldTimer();
-        }
+        if (!sentenceBuilderToggle.checked) resetHoldTimer();
     });
 
     function updateStatusText() {
@@ -114,7 +234,7 @@
         }
     }
 
-    // Capture Frame and send to FastAPI /predict
+    // Capture Frame & Predict
     async function processFrame() {
         if (isProcessing || !video.videoWidth) return;
 
@@ -135,18 +255,13 @@
             formData.append('file', blob, 'frame.jpg');
 
             try {
-                const response = await fetch('/predict', {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch('/predict', { method: 'POST', body: formData });
                 const data = await response.json();
 
                 if (data.success && data.prediction) {
                     currentPredictedSign = data.prediction;
-                    // ALWAYS display detected sign on screen
                     currentSignSpan.innerText = currentPredictedSign;
 
-                    // Only handle auto-appending if sentence builder is toggled ON
                     if (sentenceBuilderToggle.checked) {
                         handleAutoAppend(currentPredictedSign);
                     }
@@ -196,22 +311,12 @@
         }
     }
 
-    function addSpace() {
-        sentenceBox.innerText += " ";
-    }
+    function addSpace() { sentenceBox.innerText += " "; }
+    function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
+    function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
 
-    function backspace() {
-        sentenceBox.innerText = sentenceBox.innerText.slice(0, -1);
-    }
-
-    function clearSentence() {
-        sentenceBox.innerText = "";
-        resetHoldTimer();
-    }
-
-    // Initialize
-    startWebcam();
-    setInterval(processFrame, 600);
+    // Init
+    fetchUserCount();
 </script>
 
 </body>
