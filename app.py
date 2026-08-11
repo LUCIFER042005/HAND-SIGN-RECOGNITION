@@ -2,17 +2,40 @@ import io
 import pickle
 import hashlib
 import os
+import secrets
 from datetime import datetime
 import pymysql
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 import mediapipe as mp
 import numpy as np
 from PIL import Image
 
 app = FastAPI(title="Hand Sign Recognition API", version="1.0")
+
+# Security handler for HTTP Basic Auth on Admin routes
+security = HTTPBasic()
+
+# --- ADMIN CREDENTIALS ---
+ADMIN_USERNAME = "lucifer"
+ADMIN_PASSWORD = "mysecretpassword123"  # Change this to your preferred admin password!
+
+
+def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    is_correct_username = secrets.compare_digest(credentials.username, ADMIN_USERNAME)
+    is_correct_password = secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
+
+    if not (is_correct_username and is_correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect admin username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
+
 
 # Enable CORS for frontend integration
 app.add_middleware(
@@ -169,9 +192,9 @@ def get_user_count():
         return {"total_users": 0, "error": str(e)}
 
 
-# --- Admin Endpoint to View All Users ---
-@app.get("/admin/users")
-def get_all_users():
+# --- Protected Admin Endpoint to View All Users (Styled Dashboard) ---
+@app.get("/admin/users", response_class=HTMLResponse)
+def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -180,7 +203,60 @@ def get_all_users():
         cursor.execute("SELECT id, username, created_at FROM users")
         users = cursor.fetchall()
         conn.close()
-        return {"total_users": len(users), "registered_users": users}
+
+        rows = ""
+        for user in users:
+            created_str = (
+                user['created_at'].strftime("%b %d, %Y")
+                if hasattr(user['created_at'], 'strftime')
+                else str(user['created_at'])
+            )
+            rows += f"""
+            <tr>
+                <td>{user['id']}</td>
+                <td class="user-name">{user['username']}</td>
+                <td>{created_str}</td>
+            </tr>
+            """
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Admin Dashboard</title>
+            <style>
+                body {{ font-family: 'Courier New', Courier, monospace; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
+                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 550px; text-align: center; }}
+                h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
+                .badge {{ font-size: 16px; color: #fff; background: #2a2a2a; padding: 8px 16px; border-radius: 8px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+                th, td {{ padding: 12px; border: 1px solid #333; text-align: center; }}
+                th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 14px; text-transform: uppercase; }}
+                td {{ color: #ddd; font-size: 14px; }}
+                .user-name {{ color: #fff; font-weight: bold; }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>╔══════════════════════╗<br>║   ADMIN DASHBOARD    ║<br>╚══════════════════════╝</h1>
+                <div class="badge">👥 TOTAL USERS: {len(users)}</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>USERNAME</th>
+                            <th>JOINED</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows}
+                    </tbody>
+                </table>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
