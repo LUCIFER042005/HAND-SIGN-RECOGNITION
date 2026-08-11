@@ -13,7 +13,7 @@
 
         /* Auth Styles */
         .auth-card { max-width: 360px; margin: 30px auto; background: #2a2a2a; padding: 25px; border-radius: 12px; border: 1px solid #333; }
-        .auth-card input { width: 90%; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #444; background: #121212; color: white; }
+        .auth-card input, .panel-card input, .panel-card textarea { width: 90%; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #444; background: #121212; color: white; font-family: inherit; }
         .auth-btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
 
         /* App Styles */
@@ -38,6 +38,11 @@
         .shortcut-badge { background: #333; color: #4af6c6; padding: 2px 8px; border-radius: 4px; border: 1px solid #4af6c6; font-weight: bold; }
         .user-bar { display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 8px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
         .user-actions { display: flex; gap: 6px; }
+
+        /* Panel Modal */
+        #userPanel { display: none; background: #2a2a2a; padding: 20px; border-radius: 12px; margin-bottom: 15px; text-align: left; border: 1px solid #4af6c6; }
+        .panel-section { margin-bottom: 15px; }
+        .panel-title { font-size: 14px; font-weight: bold; color: #4af6c6; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -64,9 +69,37 @@
         <div class="user-bar">
             <span>Welcome, <b id="loggedInUser" style="color:#4af6c6;">User</b>!</span>
             <div class="user-actions">
+                <button onclick="toggleUserPanel()" style="padding: 4px 10px; font-size: 12px; background:#4af6c6; color:#121212; border:none;">⚙️ Profile Panel</button>
                 <button onclick="handleLogout()" style="padding: 4px 10px; font-size: 12px;">Logout</button>
-                <button class="danger" onclick="handleDeleteOwnAccount()" style="padding: 4px 10px; font-size: 12px;">Delete Account</button>
             </div>
+        </div>
+
+        <!-- USER PROFILE PANEL -->
+        <div id="userPanel" class="panel-card">
+            <h3 style="margin-top:0; color:#4af6c6;">👤 User Settings & Feedback</h3>
+
+            <div class="panel-section">
+                <div class="panel-title">🔑 Change Password</div>
+                <input type="password" id="oldPassInput" placeholder="Current Password"><br>
+                <input type="password" id="newPassInput" placeholder="New Password"><br>
+                <button class="primary" onclick="handleChangePassword()" style="padding:6px 12px; margin-top:5px;">Update Password</button>
+            </div>
+
+            <hr style="border-color:#444; margin: 15px 0;">
+
+            <div class="panel-section">
+                <div class="panel-title">💬 Submit App Review / Feedback</div>
+                <textarea id="reviewInput" rows="3" placeholder="Write your experience or feedback..."></textarea><br>
+                <button class="primary" onclick="handleSubmitReview()" style="padding:6px 12px; margin-top:5px;">Submit Review</button>
+            </div>
+
+            <hr style="border-color:#444; margin: 15px 0;">
+
+            <div class="panel-section">
+                <button class="danger" onclick="handleDeleteOwnAccount()" style="padding: 6px 12px;">Delete Account Permanently</button>
+            </div>
+
+            <p id="panelMsg" style="font-size: 12px; color: #4af6c6; margin: 5px 0;"></p>
         </div>
 
         <div class="video-wrapper">
@@ -105,6 +138,8 @@
     const authMsg = document.getElementById('authMsg');
     const loggedInUserSpan = document.getElementById('loggedInUser');
     const totalUserCountSpan = document.getElementById('totalUserCount');
+    const userPanel = document.getElementById('userPanel');
+    const panelMsg = document.getElementById('panelMsg');
 
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
@@ -122,7 +157,6 @@
     let activePassword = "";
     const HOLD_THRESHOLD_MS = 1200;
 
-    // Fetch Total User Count
     async function fetchUserCount() {
         try {
             const res = await fetch('/users/count');
@@ -135,7 +169,6 @@
         }
     }
 
-    // Auth Actions
     async function handleRegister() {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
@@ -203,6 +236,72 @@
         }
     }
 
+    function toggleUserPanel() {
+        userPanel.style.display = userPanel.style.display === 'block' ? 'none' : 'block';
+        panelMsg.innerText = "";
+    }
+
+    async function handleChangePassword() {
+        const oldPass = document.getElementById('oldPassInput').value.trim();
+        const newPass = document.getElementById('newPassInput').value.trim();
+        if (!oldPass || !newPass) {
+            panelMsg.style.color = "#ff4d4d";
+            panelMsg.innerText = "Please enter current and new password.";
+            return;
+        }
+
+        try {
+            const res = await fetch('/users/change-password', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: activeUsername, old_password: oldPass, new_password: newPass})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                panelMsg.style.color = "#4af6c6";
+                panelMsg.innerText = "Password updated successfully!";
+                activePassword = newPass;
+                document.getElementById('oldPassInput').value = "";
+                document.getElementById('newPassInput').value = "";
+            } else {
+                panelMsg.style.color = "#ff4d4d";
+                panelMsg.innerText = data.detail || "Password change failed.";
+            }
+        } catch (err) {
+            panelMsg.style.color = "#ff4d4d";
+            panelMsg.innerText = "Error updating password.";
+        }
+    }
+
+    async function handleSubmitReview() {
+        const review = document.getElementById('reviewInput').value.trim();
+        if (!review) {
+            panelMsg.style.color = "#ff4d4d";
+            panelMsg.innerText = "Please write a review before submitting.";
+            return;
+        }
+
+        try {
+            const res = await fetch('/users/submit-review', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: activeUsername, review: review})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                panelMsg.style.color = "#4af6c6";
+                panelMsg.innerText = "Thank you! Review submitted.";
+                document.getElementById('reviewInput').value = "";
+            } else {
+                panelMsg.style.color = "#ff4d4d";
+                panelMsg.innerText = "Failed to submit review.";
+            }
+        } catch (err) {
+            panelMsg.style.color = "#ff4d4d";
+            panelMsg.innerText = "Error submitting review.";
+        }
+    }
+
     async function handleDeleteOwnAccount() {
         if (confirm("Are you sure you want to permanently delete your account?")) {
             try {
@@ -229,7 +328,6 @@
         window.location.reload();
     }
 
-    // Start Webcam Stream
     async function startWebcam() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -241,7 +339,6 @@
         }
     }
 
-    // Hotkey Controls
     window.addEventListener('keydown', (e) => {
         if (appSection.style.display === 'block' && (e.key === 's' || e.key === 'S')) {
             sentenceBuilderToggle.checked = !sentenceBuilderToggle.checked;
@@ -263,7 +360,6 @@
         }
     }
 
-    // Capture Frame & Predict
     async function processFrame() {
         if (isProcessing || !video.videoWidth) return;
 
@@ -344,7 +440,6 @@
     function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
     function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
 
-    // Init
     fetchUserCount();
 </script>
 

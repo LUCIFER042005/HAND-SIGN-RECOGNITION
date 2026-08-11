@@ -16,12 +16,11 @@ from PIL import Image
 
 app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 
-# Security handler for HTTP Basic Auth on Admin routes
 security = HTTPBasic()
 
 # --- ADMIN CREDENTIALS ---
 ADMIN_USERNAME = "Punjan"
-ADMIN_PASSWORD = "Punjan123"  # Change this to your preferred admin password!
+ADMIN_PASSWORD = "Punjan123"
 
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -37,7 +36,6 @@ def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials.username
 
 
-# Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -46,17 +44,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Resolve absolute path for project files
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INDEX_PATH = os.path.join(BASE_DIR, "index.html")
 MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 
-# --- MySQL Configuration from Environment Variables ---
 MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 MYSQL_DB = os.getenv("MYSQL_DB", "defaultdb")
-MYSQL_PORT = int(os.getenv("MYSQL_PORT", 3306)) if os.getenv("MYSQL_PORT") else 3306
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", 15747)) if os.getenv("MYSQL_PORT") else 15747
 
 
 def get_db_connection():
@@ -70,7 +66,7 @@ def get_db_connection():
         port=MYSQL_PORT,
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=True,
-        ssl={'ssl': {}}  # Enables SSL required by cloud hosts like Aiven
+        ssl={'ssl': {}}
     )
 
 
@@ -89,8 +85,16 @@ def init_db():
                 created_at DATETIME NOT NULL
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reviews (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                review TEXT NOT NULL,
+                created_at DATETIME NOT NULL
+            )
+        """)
         conn.close()
-        print("Permanent Cloud MySQL Database initialized successfully!")
+        print("Database initialized successfully!")
     except Exception as e:
         print(f"Database initialization error: {e}")
 
@@ -100,11 +104,21 @@ class UserAuth(BaseModel):
     password: str
 
 
+class ChangePassword(BaseModel):
+    username: str
+    old_password: str
+    new_password: str
+
+
+class UserReview(BaseModel):
+    username: str
+    review: str
+
+
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-# --- Global ML Model Variables ---
 model = None
 hands = None
 
@@ -114,7 +128,6 @@ def load_resources():
     global model, hands
     init_db()
 
-    # Load trained model using absolute path
     if os.path.exists(MODEL_PATH):
         with open(MODEL_PATH, "rb") as f:
             model_dict = pickle.load(f)
@@ -122,19 +135,16 @@ def load_resources():
     else:
         print(f"Warning: Model file not found at {MODEL_PATH}")
 
-    # Initialize MediaPipe Hands
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=True, max_num_hands=1, min_detection_confidence=0.3
     )
-    print("Model and MediaPipe initialized successfully!")
 
 
-# --- Authentication Endpoints ---
 @app.post("/register")
 def register(user: UserAuth):
     if not MYSQL_HOST:
-        raise HTTPException(status_code=500, detail="Database credentials missing on server (MYSQL_HOST).")
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -156,7 +166,7 @@ def register(user: UserAuth):
 @app.post("/login")
 def login(user: UserAuth):
     if not MYSQL_HOST:
-        raise HTTPException(status_code=500, detail="Database credentials missing on server (MYSQL_HOST).")
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -173,6 +183,50 @@ def login(user: UserAuth):
             return {"success": True, "username": db_user["username"]}
         else:
             raise HTTPException(status_code=401, detail="Invalid username or password.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.post("/users/change-password")
+def change_password(data: ChangePassword):
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        hashed_old = hash_password(data.old_password)
+        hashed_new = hash_password(data.new_password)
+
+        cursor.execute(
+            "UPDATE users SET password = %s WHERE username = %s AND password = %s",
+            (hashed_new, data.username, hashed_old)
+        )
+        affected = cursor.rowcount
+        conn.close()
+
+        if affected > 0:
+            return {"success": True, "message": "Password updated successfully!"}
+        else:
+            raise HTTPException(status_code=400, detail="Incorrect current password.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.post("/users/submit-review")
+def submit_review(data: UserReview):
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute(
+            "INSERT INTO reviews (username, review, created_at) VALUES (%s, %s, %s)",
+            (data.username, data.review, created_at)
+        )
+        conn.close()
+        return {"success": True, "message": "Review submitted successfully!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
@@ -216,7 +270,6 @@ def get_user_count():
         return {"total_users": 0, "error": str(e)}
 
 
-# --- Protected Admin Delete Route ---
 @app.delete("/admin/users/{user_id}")
 def delete_user_by_admin(user_id: int, admin: str = Depends(authenticate_admin)):
     if not MYSQL_HOST:
@@ -236,7 +289,6 @@ def delete_user_by_admin(user_id: int, admin: str = Depends(authenticate_admin))
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-# --- Protected Admin Endpoint (Styled Dashboard with Action Buttons) ---
 @app.get("/admin/users", response_class=HTMLResponse)
 def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
     if not MYSQL_HOST:
@@ -246,10 +298,14 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         cursor = conn.cursor()
         cursor.execute("SELECT id, username, created_at FROM users")
         users = cursor.fetchall()
+
+        cursor.execute("SELECT username, review, created_at FROM reviews ORDER BY id DESC LIMIT 10")
+        reviews = cursor.fetchall()
         conn.close()
 
+        # Build user table with sequential numbering (1, 2, 3...)
         rows = ""
-        for user in users:
+        for index, user in enumerate(users, start=1):
             created_str = (
                 user['created_at'].strftime("%b %d, %Y")
                 if hasattr(user['created_at'], 'strftime')
@@ -257,7 +313,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             )
             rows += f"""
             <tr>
-                <td>{user['id']}</td>
+                <td><b>{index}</b></td>
                 <td class="user-name">{user['username']}</td>
                 <td>{created_str}</td>
                 <td>
@@ -266,17 +322,30 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             </tr>
             """
 
+        review_rows = ""
+        for r in reviews:
+            rev_date = r['created_at'].strftime("%b %d") if hasattr(r['created_at'], 'strftime') else str(
+                r['created_at'])
+            review_rows += f"""
+            <div style="background:#2a2a2a; border:1px solid #333; border-radius:6px; padding:10px; margin-bottom:8px; text-align:left;">
+                <div style="font-size:12px; color:#4af6c6; display:flex; justify-content:space-between;">
+                    <b>@{r['username']}</b> <span>{rev_date}</span>
+                </div>
+                <div style="font-size:13px; color:#ddd; margin-top:4px;">"{r['review']}"</div>
+            </div>
+            """
+
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <title>Admin Dashboard</title>
             <style>
-                body {{ font-family: 'Courier New', Courier, monospace; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
-                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 620px; text-align: center; }}
+                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
+                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 650px; text-align: center; }}
                 h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
                 .badge {{ font-size: 16px; color: #fff; background: #2a2a2a; padding: 8px 16px; border-radius: 8px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
                 th, td {{ padding: 12px; border: 1px solid #333; text-align: center; }}
                 th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 14px; text-transform: uppercase; }}
                 td {{ color: #ddd; font-size: 14px; }}
@@ -305,7 +374,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>SR NO.</th>
                             <th>USERNAME</th>
                             <th>JOINED</th>
                             <th>ACTION</th>
@@ -315,6 +384,9 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         {rows}
                     </tbody>
                 </table>
+
+                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; margin-top:20px; text-align:left;">💬 USER REVIEWS</h3>
+                {review_rows if review_rows else '<div style="color:#888; font-size:13px;">No reviews submitted yet.</div>'}
             </div>
         </body>
         </html>
@@ -324,7 +396,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-# --- Serve Frontend Page ---
 @app.get("/")
 def serve_frontend():
     if os.path.exists(INDEX_PATH):
@@ -337,7 +408,6 @@ def health_check():
     return {"status": "online", "model_loaded": model is not None}
 
 
-# --- Prediction Endpoint ---
 @app.post("/predict")
 async def predict_sign(file: UploadFile = File(...)):
     if not model:
