@@ -20,8 +20,8 @@ app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 security = HTTPBasic()
 
 # --- ADMIN CREDENTIALS ---
-ADMIN_USERNAME = "lucifer"
-ADMIN_PASSWORD = "mysecretpassword123"  # Change this to your preferred admin password!
+ADMIN_USERNAME = "Punjan"
+ADMIN_PASSWORD = "Punjan123"  # Change this to your preferred admin password!
 
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -177,6 +177,30 @@ def login(user: UserAuth):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
+@app.post("/users/delete-me")
+def delete_own_account(user: UserAuth):
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        hashed_pwd = hash_password(user.password)
+
+        cursor.execute(
+            "DELETE FROM users WHERE username = %s AND password = %s",
+            (user.username, hashed_pwd)
+        )
+        affected_rows = cursor.rowcount
+        conn.close()
+
+        if affected_rows > 0:
+            return {"success": True, "message": "Account deleted successfully."}
+        else:
+            raise HTTPException(status_code=401, detail="Invalid password verification.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
 @app.get("/users/count")
 def get_user_count():
     if not MYSQL_HOST:
@@ -192,7 +216,27 @@ def get_user_count():
         return {"total_users": 0, "error": str(e)}
 
 
-# --- Protected Admin Endpoint to View All Users (Styled Dashboard) ---
+# --- Protected Admin Delete Route ---
+@app.delete("/admin/users/{user_id}")
+def delete_user_by_admin(user_id: int, admin: str = Depends(authenticate_admin)):
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        affected_rows = cursor.rowcount
+        conn.close()
+
+        if affected_rows > 0:
+            return {"success": True, "message": f"User {user_id} deleted."}
+        else:
+            raise HTTPException(status_code=404, detail="User not found.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+# --- Protected Admin Endpoint (Styled Dashboard with Action Buttons) ---
 @app.get("/admin/users", response_class=HTMLResponse)
 def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
     if not MYSQL_HOST:
@@ -216,6 +260,9 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 <td>{user['id']}</td>
                 <td class="user-name">{user['username']}</td>
                 <td>{created_str}</td>
+                <td>
+                    <button class="btn-del" onclick="deleteUser({user['id']}, '{user['username']}')">Delete</button>
+                </td>
             </tr>
             """
 
@@ -226,7 +273,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             <title>Admin Dashboard</title>
             <style>
                 body {{ font-family: 'Courier New', Courier, monospace; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
-                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 550px; text-align: center; }}
+                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 620px; text-align: center; }}
                 h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
                 .badge {{ font-size: 16px; color: #fff; background: #2a2a2a; padding: 8px 16px; border-radius: 8px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
@@ -234,7 +281,22 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 14px; text-transform: uppercase; }}
                 td {{ color: #ddd; font-size: 14px; }}
                 .user-name {{ color: #fff; font-weight: bold; }}
+                .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }}
+                .btn-del:hover {{ background: #e03e3e; }}
             </style>
+            <script>
+                async function deleteUser(id, username) {{
+                    if (confirm("Delete account for user '" + username + "'?")) {{
+                        const res = await fetch('/admin/users/' + id, {{ method: 'DELETE' }});
+                        if (res.ok) {{
+                            alert("User deleted!");
+                            window.location.reload();
+                        }} else {{
+                            alert("Failed to delete user.");
+                        }}
+                    }}
+                }}
+            </script>
         </head>
         <body>
             <div class="card">
@@ -246,6 +308,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                             <th>ID</th>
                             <th>USERNAME</th>
                             <th>JOINED</th>
+                            <th>ACTION</th>
                         </tr>
                     </thead>
                     <tbody>
