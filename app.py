@@ -19,8 +19,8 @@ app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 security = HTTPBasic()
 
 # --- ADMIN CREDENTIALS ---
-ADMIN_USERNAME = "lucifer"
-ADMIN_PASSWORD = "mysecretpassword123"
+ADMIN_USERNAME = "Punjan"
+ADMIN_PASSWORD = "Punjan123"
 
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
