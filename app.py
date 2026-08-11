@@ -19,8 +19,8 @@ app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 security = HTTPBasic()
 
 # --- ADMIN CREDENTIALS ---
-ADMIN_USERNAME = "Punjan"
-ADMIN_PASSWORD = "Punjan123"
+ADMIN_USERNAME = "lucifer"
+ADMIN_PASSWORD = "mysecretpassword123"
 
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -82,9 +82,16 @@ def init_db():
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(255) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
-                created_at DATETIME NOT NULL
+                created_at DATETIME NOT NULL,
+                last_login DATETIME NULL
             )
         """)
+        # Ensure column exists if table was created previously without last_login
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN last_login DATETIME NULL")
+        except Exception:
+            pass  # Column already exists
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS reviews (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -152,8 +159,8 @@ def register(user: UserAuth):
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
-            "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
-            (user.username, hashed_pwd, created_at)
+            "INSERT INTO users (username, password, created_at, last_login) VALUES (%s, %s, %s, %s)",
+            (user.username, hashed_pwd, created_at, created_at)
         )
         conn.close()
         return {"success": True, "message": "Account created successfully!"}
@@ -177,11 +184,15 @@ def login(user: UserAuth):
             (user.username, hashed_pwd)
         )
         db_user = cursor.fetchone()
-        conn.close()
 
         if db_user:
+            # Record login timestamp
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("UPDATE users SET last_login = %s WHERE id = %s", (now_str, db_user["id"]))
+            conn.close()
             return {"success": True, "username": db_user["username"]}
         else:
+            conn.close()
             raise HTTPException(status_code=401, detail="Invalid username or password.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -296,14 +307,14 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, created_at FROM users")
+        cursor.execute("SELECT id, username, created_at, last_login FROM users ORDER BY id ASC")
         users = cursor.fetchall()
 
         cursor.execute("SELECT username, review, created_at FROM reviews ORDER BY id DESC LIMIT 10")
         reviews = cursor.fetchall()
         conn.close()
 
-        # Build user table with sequential numbering (1, 2, 3...)
+        # Build table rows with Serial Number and Last Login Timestamp
         rows = ""
         for index, user in enumerate(users, start=1):
             created_str = (
@@ -311,11 +322,22 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 if hasattr(user['created_at'], 'strftime')
                 else str(user['created_at'])
             )
+
+            if user.get('last_login'):
+                last_login_str = (
+                    user['last_login'].strftime("%b %d, %Y %I:%M %p")
+                    if hasattr(user['last_login'], 'strftime')
+                    else str(user['last_login'])
+                )
+            else:
+                last_login_str = "Never"
+
             rows += f"""
             <tr>
                 <td><b>{index}</b></td>
                 <td class="user-name">{user['username']}</td>
                 <td>{created_str}</td>
+                <td style="color:#4af6c6;">{last_login_str}</td>
                 <td>
                     <button class="btn-del" onclick="deleteUser({user['id']}, '{user['username']}')">Delete</button>
                 </td>
@@ -324,7 +346,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
 
         review_rows = ""
         for r in reviews:
-            rev_date = r['created_at'].strftime("%b %d") if hasattr(r['created_at'], 'strftime') else str(
+            rev_date = r['created_at'].strftime("%b %d, %I:%M %p") if hasattr(r['created_at'], 'strftime') else str(
                 r['created_at'])
             review_rows += f"""
             <div style="background:#2a2a2a; border:1px solid #333; border-radius:6px; padding:10px; margin-bottom:8px; text-align:left;">
@@ -342,13 +364,13 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             <title>Admin Dashboard</title>
             <style>
                 body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
-                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 650px; text-align: center; }}
+                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 780px; text-align: center; }}
                 h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
                 .badge {{ font-size: 16px; color: #fff; background: #2a2a2a; padding: 8px 16px; border-radius: 8px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
                 th, td {{ padding: 12px; border: 1px solid #333; text-align: center; }}
-                th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 14px; text-transform: uppercase; }}
-                td {{ color: #ddd; font-size: 14px; }}
+                th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 13px; text-transform: uppercase; }}
+                td {{ color: #ddd; font-size: 13px; }}
                 .user-name {{ color: #fff; font-weight: bold; }}
                 .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }}
                 .btn-del:hover {{ background: #e03e3e; }}
@@ -377,6 +399,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                             <th>SR NO.</th>
                             <th>USERNAME</th>
                             <th>JOINED</th>
+                            <th>LAST LOGIN</th>
                             <th>ACTION</th>
                         </tr>
                     </thead>
