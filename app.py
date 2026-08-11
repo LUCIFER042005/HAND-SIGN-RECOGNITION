@@ -3,7 +3,7 @@ import pickle
 import hashlib
 import os
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pymysql
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +21,9 @@ security = HTTPBasic()
 # --- ADMIN CREDENTIALS ---
 ADMIN_USERNAME = "Punjan"
 ADMIN_PASSWORD = "Punjan123"
+
+# --- TIMEZONE CONFIGURATION (IST) ---
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -149,7 +152,7 @@ def register(user: UserAuth):
         conn = get_db_connection()
         cursor = conn.cursor()
         hashed_pwd = hash_password(user.password)
-        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
@@ -219,7 +222,7 @@ def submit_review(data: UserReview):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO reviews (username, review, created_at) VALUES (%s, %s, %s)",
@@ -303,11 +306,10 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         reviews = cursor.fetchall()
         conn.close()
 
-        # Format created_at to include Date AND Time (e.g., Aug 11, 2026, 07:40 PM)
         rows = ""
         for index, user in enumerate(users, start=1):
             created_str = (
-                user['created_at'].strftime("%b %d, %Y, %I:%M %p")
+                user['created_at'].strftime("%b %d, %Y, %I:%M %p IST")
                 if hasattr(user['created_at'], 'strftime')
                 else str(user['created_at'])
             )
@@ -324,7 +326,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
 
         review_rows = ""
         for r in reviews:
-            rev_date = r['created_at'].strftime("%b %d, %I:%M %p") if hasattr(r['created_at'], 'strftime') else str(r['created_at'])
+            rev_date = r['created_at'].strftime("%b %d, %I:%M %p IST") if hasattr(r['created_at'], 'strftime') else str(r['created_at'])
             review_rows += f"""
             <div style="background:#2a2a2a; border:1px solid #333; border-radius:6px; padding:10px; margin-bottom:8px; text-align:left;">
                 <div style="font-size:12px; color:#4af6c6; display:flex; justify-content:space-between;">
@@ -341,7 +343,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             <title>Admin Dashboard</title>
             <style>
                 body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
-                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 720px; text-align: center; }}
+                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 750px; text-align: center; }}
                 h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
                 .badge {{ font-size: 16px; color: #fff; background: #2a2a2a; padding: 8px 16px; border-radius: 8px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
@@ -375,7 +377,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         <tr>
                             <th>SR NO.</th>
                             <th>USERNAME</th>
-                            <th>JOINED (DATE & TIME)</th>
+                            <th>JOINED (IST TIME)</th>
                             <th>ACTION</th>
                         </tr>
                     </thead>
