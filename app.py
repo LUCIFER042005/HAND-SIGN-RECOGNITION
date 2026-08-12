@@ -26,6 +26,20 @@ ADMIN_PASSWORD = "Punjan123"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
+def convert_to_ist_str(dt_val):
+    if not dt_val:
+        return "-"
+    if isinstance(dt_val, str):
+        try:
+            dt_val = datetime.strptime(dt_val, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return dt_val
+    # Add UTC timezone if naive, then convert to IST (+5:30)
+    utc_dt = dt_val.replace(tzinfo=timezone.utc)
+    ist_dt = utc_dt.astimezone(IST)
+    return ist_dt.strftime("%b %d, %Y, %I:%M %p IST")
+
+
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
     is_correct_username = secrets.compare_digest(credentials.username, ADMIN_USERNAME)
     is_correct_password = secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
@@ -152,7 +166,7 @@ def register(user: UserAuth):
         conn = get_db_connection()
         cursor = conn.cursor()
         hashed_pwd = hash_password(user.password)
-        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
@@ -222,7 +236,7 @@ def submit_review(data: UserReview):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO reviews (username, review, created_at) VALUES (%s, %s, %s)",
@@ -308,11 +322,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
 
         rows = ""
         for index, user in enumerate(users, start=1):
-            created_str = (
-                user['created_at'].strftime("%b %d, %Y, %I:%M %p IST")
-                if hasattr(user['created_at'], 'strftime')
-                else str(user['created_at'])
-            )
+            created_str = convert_to_ist_str(user['created_at'])
             rows += f"""
             <tr>
                 <td><b>{index}</b></td>
@@ -326,7 +336,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
 
         review_rows = ""
         for r in reviews:
-            rev_date = r['created_at'].strftime("%b %d, %I:%M %p IST") if hasattr(r['created_at'], 'strftime') else str(r['created_at'])
+            rev_date = convert_to_ist_str(r['created_at'])
             review_rows += f"""
             <div style="background:#2a2a2a; border:1px solid #333; border-radius:6px; padding:10px; margin-bottom:8px; text-align:left;">
                 <div style="font-size:12px; color:#4af6c6; display:flex; justify-content:space-between;">
