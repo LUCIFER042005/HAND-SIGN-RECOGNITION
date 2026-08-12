@@ -34,9 +34,12 @@ def convert_to_ist_str(dt_val):
             dt_val = datetime.strptime(dt_val, "%Y-%m-%d %H:%M:%S")
         except ValueError:
             return dt_val
-    # Add UTC timezone if naive, then convert to IST (+5:30)
-    utc_dt = dt_val.replace(tzinfo=timezone.utc)
-    ist_dt = utc_dt.astimezone(IST)
+    # If datetime is naive, treat as UTC and convert to IST (+5:30)
+    if dt_val.tzinfo is None:
+        utc_dt = dt_val.replace(tzinfo=timezone.utc)
+        ist_dt = utc_dt.astimezone(IST)
+    else:
+        ist_dt = dt_val.astimezone(IST)
     return ist_dt.strftime("%b %d, %Y, %I:%M %p IST")
 
 
@@ -166,7 +169,7 @@ def register(user: UserAuth):
         conn = get_db_connection()
         cursor = conn.cursor()
         hashed_pwd = hash_password(user.password)
-        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
@@ -236,7 +239,7 @@ def submit_review(data: UserReview):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO reviews (username, review, created_at) VALUES (%s, %s, %s)",
@@ -447,9 +450,13 @@ async def predict_sign(file: UploadFile = File(...)):
         x_.append(hand_landmarks.landmark[i].x)
         y_.append(hand_landmarks.landmark[i].y)
 
+    # Scale normalization to match create_dataset.py
+    width = max(x_) - min(x_) if (max(x_) - min(x_)) != 0 else 1.0
+    height = max(y_) - min(y_) if (max(y_) - min(y_)) != 0 else 1.0
+
     for i in range(len(hand_landmarks.landmark)):
-        data_aux.append(hand_landmarks.landmark[i].x - min(x_))
-        data_aux.append(hand_landmarks.landmark[i].y - min(y_))
+        data_aux.append((hand_landmarks.landmark[i].x - min(x_)) / width)
+        data_aux.append((hand_landmarks.landmark[i].y - min(y_)) / height)
 
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
