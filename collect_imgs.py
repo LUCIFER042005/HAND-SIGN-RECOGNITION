@@ -1,4 +1,5 @@
 import os
+import time
 import cv2
 
 # Directory to save dataset
@@ -25,48 +26,47 @@ class_dir = os.path.join(DATA_DIR, letter)
 if not os.path.exists(class_dir):
     os.makedirs(class_dir)
 
-print(f'Collecting data for letter: {letter}, total images: {dataset_size}')
+print(f'\nCollecting data for letter: {letter}, total images: {dataset_size}')
 
-# Use webcam (change index if needed)
+# Use webcam
 cap = cv2.VideoCapture(0)
 
-capturing = False
+if not cap.isOpened():
+    print("Error: Could not open webcam.")
+    exit()
+
+# Wait for user to type 's' to start capturing
+while True:
+    user_input = input("\nPosition your hand sign in front of the camera, then type 's' and press Enter to start capturing: ").strip().lower()
+    if user_input == 's':
+        break
+    elif user_input == 'q':
+        print('Stopping capture and closing camera...')
+        cap.release()
+        exit()
+    else:
+        print("Invalid input. Type 's' to start or 'q' to quit.")
+
+print("\nCapturing started...")
 counter = 0
 
-while True:
+while counter < dataset_size:
     ret, frame = cap.read()
     if not ret:
         continue
 
-    # Show instructions or capturing status
-    if not capturing:
-        cv2.putText(frame, 'Press "S" to start capturing', (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, cv2.LINE_AA)
-    else:
-        cv2.putText(frame, f'Capturing... {counter}/{dataset_size}', (50, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, cv2.LINE_AA)
+    # Save frame directly to disk (Headless)
+    filename = os.path.join(class_dir, '{}.jpg'.format(counter))
+    cv2.imwrite(filename, frame)
+    counter += 1
 
-    cv2.imshow('frame', frame)
+    # Show live terminal progress
+    print(f"Capturing... {counter}/{dataset_size}", end="\r")
 
-    key = cv2.waitKey(25) & 0xFF
+    # Slight delay between frame captures
+    time.sleep(0.05)
 
-    if key == ord('s'):
-        capturing = True  # Start capturing
-    elif key == ord('q'):
-        print('Stopping capture and closing camera...')
-        break  # Exit the loop and close camera
-
-    # Capture images if capturing is True
-    if capturing and counter < dataset_size:
-        filename = os.path.join(class_dir, '{}.jpg'.format(counter))
-        cv2.imwrite(filename, frame)
-        counter += 1
-
-    # Stop capturing automatically if reached dataset_size
-    if counter >= dataset_size:
-        print(f'Finished capturing {dataset_size} images for letter {letter}.')
-        break
+print(f'\n\nFinished capturing {dataset_size} images for letter {letter}.')
 
 # Release resources
 cap.release()
-cv2.destroyAllWindows()
