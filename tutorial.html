@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Language Tutorial & Dictionary</title>
+    <title>Hand Sign Tutorial & Dictionary</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -69,6 +69,9 @@
             border-color: #4af6c6;
             box-shadow: 0 6px 20px rgba(74, 246, 198, 0.1);
         }
+        .guide-card.special-card {
+            border-color: #ffb84d;
+        }
         .card-top {
             display: flex;
             align-items: center;
@@ -84,9 +87,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 24px;
             font-weight: bold;
             color: #4af6c6;
+            flex-shrink: 0;
+        }
+        .special-card .letter-badge {
+            border-color: #ffb84d;
+            color: #ffb84d;
+            font-size: 16px;
         }
         .card-title {
             font-size: 18px;
@@ -102,18 +111,21 @@
             border-radius: 8px;
             border-left: 3px solid #4af6c6;
         }
+        .special-card .instructions {
+            border-left-color: #ffb84d;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <h1>📖 Official Sign Language Alphabet Guide</h1>
+        <h1>📖 Custom Dataset Sign Language Guide</h1>
         <a href="/" class="btn-back">⬅ Return to Main App</a>
     </div>
 
     <div class="subtitle">
-        Reference dictionary matching the official hand sign recognition dataset.
+        Reference dictionary and hand posture instructions for your exact 24 custom trained gestures.
     </div>
 
     <div class="cards-grid" id="guideGrid">
@@ -123,45 +135,42 @@
 
 <script>
     const signGuide = {
-        "A": { title: "Sign A", guide: "Make a closed fist with all 4 fingers folded down, and keep your thumb resting upright along the side of the index finger." },
-        "B": { title: "Sign B", guide: "Hold all 4 fingers straight up together, with your thumb folded flat across your palm." },
-        "C": { title: "Sign C", guide: "Curve your fingers and thumb in an open arc to form the clear shape of the letter 'C'." },
-        "D": { title: "Sign D", guide: "Point your index finger straight up into the air while your thumb touches the middle, ring, and pinky fingers to form an 'O'." },
-        "E": { title: "Sign E", guide: "Curl all fingertips down onto the palm with the thumb tucked tightly across beneath the fingertips." },
-        "F": { title: "Sign F", guide: "Touch the tips of your thumb and index finger together into a circle, holding the remaining three fingers (middle, ring, pinky) straight up." },
-        "G": { title: "Sign G", guide: "Extend your index finger and thumb horizontally to the side, pointing outward parallel to each other." },
-        "H": { title: "Sign H", guide: "Extend both your index and middle fingers together horizontally to the side with thumb tucked in." },
-        "I": { title: "Sign I", guide: "Make a fist and raise only your pinky finger straight up into the air." },
-        "J": { title: "Sign J", guide: "Make the 'I' sign with your pinky finger and trace a curve in the air in the shape of the letter 'J'." },
-        "K": { title: "Sign K", guide: "Extend your index finger straight up, point your middle finger slightly forward, and place your thumb between them touching the middle finger knuckle." },
-        "L": { title: "Sign L", guide: "Extend your thumb and index finger outward to form a sharp 90-degree 'L' shape." },
-        "M": { title: "Sign M", guide: "Fold your thumb beneath your first three fingers (index, middle, ring) so the thumb tip pokes out between your ring and pinky finger." },
-        "N": { title: "Sign N", guide: "Fold your thumb beneath your first two fingers (index, middle) so the thumb tip pokes out under your middle finger." },
-        "O": { title: "Sign O", guide: "Touch all four fingertips and your thumb together to create an open circular 'O' shape." },
-        "P": { title: "Sign P", guide: "Form the 'K' handshape and point both your index and middle fingers downward toward the floor." },
-        "Q": { title: "Sign Q", guide: "Form the 'G' handshape and point both your index finger and thumb downward." },
-        "R": { title: "Sign R", guide: "Cross your middle finger over the back of your index finger like making a lucky wish." },
-        "S": { title: "Sign S", guide: "Make a closed fist and fold your thumb tightly across the front of all 4 fingers." },
-        "T": { title: "Sign T", guide: "Make a fist and tuck your thumb tip upward directly between your index and middle fingers." },
-        "U": { title: "Sign U", guide: "Hold both your index and middle fingers straight up held tightly together." },
-        "V": { title: "Sign V", guide: "Hold your index and middle fingers straight up and spread them apart in a peace 'V' sign." },
-        "W": { title: "Sign W", guide: "Hold your index, middle, and ring fingers straight up and spread apart in a 'W' shape." },
-        "X": { title: "Sign X", guide: "Make a fist with only the index finger raised and curved down into a small hook shape." },
-        "Y": { title: "Sign Y", guide: "Make a fist and extend only your thumb and pinky finger outward (the 'hang loose' hand gesture)." },
-        "Z": { title: "Sign Z", guide: "Point your index finger and draw the letter 'Z' in the air in a zig-zag motion." }
+        "A": { title: "Sign A", guide: "Make a closed fist facing forward with all 4 fingers folded down and thumb resting upright along the side of the index finger." },
+        "B": { title: "Sign B", guide: "Hold all 4 fingers straight up together, folding your thumb flat across your palm." },
+        "C": { title: "Sign C", guide: "Curve your fingers and thumb sideways in an open arc to form the shape of the letter 'C'." },
+        "D": { title: "Sign D", guide: "Point your index finger straight up into the air with the other fingers curled closed." },
+        "E": { title: "Sign E", guide: "Curl all four fingertips tightly down into your palm with thumb tucked underneath." },
+        "F": { title: "Sign F", guide: "Touch your index finger and thumb tip together in a circle, holding middle, ring, and pinky straight up." },
+        "G": { title: "Sign G", guide: "Point your index finger horizontally to the side with thumb held parallel." },
+        "H": { title: "Sign H", guide: "Extend both your index and middle fingers straight up together with thumb holding remaining fingers down." },
+        "I": { title: "Sign I", guide: "Make a closed fist and extend only your pinky finger straight up into the air." },
+        "J": { title: "Sign J", guide: "Hold your pinky finger straight up, ready to trace the 'J' letter curve in the air." },
+        "K": { title: "Sign K", guide: "Point index and middle fingers in an angled 'V' with thumb placed directly between them." },
+        "L": { title: "Sign L", guide: "Extend your index finger straight up and thumb outward to make a crisp 'L' shape." },
+        "N": { title: "Sign N", guide: "Make a fist facing forward with your thumb folded tightly under the front fingers." },
+        "O": { title: "Sign O", guide: "Touch all fingertips and thumb together in a circular ring 'O' shape." },
+        "P": { title: "Sign P", guide: "Hand tilted pointing index finger forward and downward horizontally." },
+        "Q": { title: "Sign Q", guide: "Point both your index finger and thumb downward in a pinch grip." },
+        "R": { title: "Sign R", guide: "Cross your middle finger over your index finger like making a lucky wish." },
+        "U": { title: "Sign U", guide: "Extend your index and pinky fingers upright while holding middle and ring fingers closed down." },
+        "V": { title: "Sign V", guide: "Extend index and middle fingers straight up and spread them apart in a peace sign." },
+        "W": { title: "Sign W", guide: "Hold index, middle, and ring fingers straight up and spread apart like a 'W'." },
+        "X": { title: "Sign X", guide: "Make a fist with only the index finger raised and bent down into a small hook shape." },
+        "Y": { title: "Sign Y", guide: "Make a fist and extend only your thumb and pinky finger outward (hang loose / shaka sign)." },
+        "DELETE": { title: "Action: DELETE", guide: "Raise index and pinky fingers upright with middle and ring fingers closed (horns pose) to delete the last character." },
+        "SPACE": { title: "Action: SPACE", guide: "Extend thumb, index, and pinky fingers outward with middle and ring folded (3-finger open pose) to insert a space." }
     };
 
     const grid = document.getElementById('guideGrid');
-    Object.keys(signGuide).forEach(letter => {
-        const item = signGuide[letter];
+    Object.keys(signGuide).forEach(key => {
+        const item = signGuide[key];
+        const isSpecial = (key === "DELETE" || key === "SPACE");
         const card = document.createElement('div');
-        card.className = 'guide-card';
+        card.className = `guide-card ${isSpecial ? 'special-card' : ''}`;
         card.innerHTML = `
             <div class="card-top">
-                <div class="letter-badge">${letter}</div>
-                <div>
-                    <div class="card-title">${item.title}</div>
-                </div>
+                <div class="letter-badge">${isSpecial ? (key === 'DELETE' ? '⌫ DEL' : '␣ SPC') : key}</div>
+                <div class="card-title">${item.title}</div>
             </div>
             <div class="instructions">${item.guide}</div>
         `;
