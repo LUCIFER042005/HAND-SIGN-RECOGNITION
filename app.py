@@ -313,7 +313,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, created_at FROM users ORDER BY id ASC")
+        # Selected password column from users table
+        cursor.execute("SELECT id, username, password, created_at FROM users ORDER BY id ASC")
         users = cursor.fetchall()
 
         cursor.execute("SELECT username, review, created_at FROM reviews ORDER BY id DESC LIMIT 10")
@@ -323,10 +324,15 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         rows = ""
         for index, user in enumerate(users, start=1):
             created_str = convert_to_ist_str(user['created_at'])
+            pwd_hash = user.get('password', 'N/A')
             rows += f"""
             <tr>
                 <td><b>{index}</b></td>
                 <td class="user-name">{user['username']}</td>
+                <td>
+                    <span id="pwd-{user['id']}" style="font-family:monospace; color:#aaa; font-size:11px;">••••••••••••</span>
+                    <button class="btn-toggle" onclick="togglePassword({user['id']}, '{pwd_hash}')">👁</button>
+                </td>
                 <td style="color:#4af6c6;">{created_str}</td>
                 <td>
                     <button class="btn-del" onclick="deleteUser({user['id']}, '{user['username']}')">Delete</button>
@@ -353,7 +359,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             <title>Admin Dashboard</title>
             <style>
                 body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
-                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 750px; text-align: center; }}
+                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 850px; text-align: center; }}
                 h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
                 .badge {{ font-size: 16px; color: #fff; background: #2a2a2a; padding: 8px 16px; border-radius: 8px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
@@ -361,10 +367,23 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 13px; text-transform: uppercase; }}
                 td {{ color: #ddd; font-size: 13px; }}
                 .user-name {{ color: #fff; font-weight: bold; }}
+                .btn-toggle {{ background: #333; border: 1px solid #4af6c6; color: #4af6c6; border-radius: 4px; padding: 2px 6px; cursor: pointer; margin-left: 6px; font-size: 11px; }}
+                .btn-toggle:hover {{ background: #4af6c6; color: #121212; }}
                 .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }}
                 .btn-del:hover {{ background: #e03e3e; }}
             </style>
             <script>
+                function togglePassword(id, hash) {{
+                    const el = document.getElementById('pwd-' + id);
+                    if (el.innerText.includes('•')) {{
+                        el.innerText = hash.substring(0, 16) + '...';
+                        el.title = hash;
+                    }} else {{
+                        el.innerText = '••••••••••••';
+                        el.title = '';
+                    }}
+                }}
+
                 async function deleteUser(id, username) {{
                     if (confirm("Delete account for user '" + username + "'?")) {{
                         const res = await fetch('/admin/users/' + id, {{ method: 'DELETE' }});
@@ -387,6 +406,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         <tr>
                             <th>SR NO.</th>
                             <th>USERNAME</th>
+                            <th>PASSWORD (HASH)</th>
                             <th>JOINED (IST TIME)</th>
                             <th>ACTION</th>
                         </tr>
