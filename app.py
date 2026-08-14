@@ -69,6 +69,7 @@ app.add_middleware(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INDEX_PATH = os.path.join(BASE_DIR, "index.html")
+TUTORIAL_PATH = os.path.join(BASE_DIR, "tutorial.html")
 MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
@@ -117,15 +118,6 @@ def init_db():
             )
         """)
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS quiz_scores (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(255) NOT NULL,
-                score INT NOT NULL,
-                streak INT NOT NULL,
-                created_at DATETIME NOT NULL
-            )
-        """)
-        cursor.execute("""
             CREATE TABLE IF NOT EXISTS prediction_analytics (
                 predicted_char VARCHAR(10) PRIMARY KEY,
                 count INT DEFAULT 1
@@ -151,12 +143,6 @@ class ChangePassword(BaseModel):
 class UserReview(BaseModel):
     username: str
     review: str
-
-
-class QuizSubmission(BaseModel):
-    username: str
-    score: int
-    streak: int
 
 
 model = None
@@ -275,46 +261,6 @@ def submit_review(data: UserReview):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-@app.post("/quiz/submit-score")
-def submit_quiz_score(data: QuizSubmission):
-    if not MYSQL_HOST:
-        return {"success": True, "message": "Local score received (DB offline)"}
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute(
-            "INSERT INTO quiz_scores (username, score, streak, created_at) VALUES (%s, %s, %s, %s)",
-            (data.username, data.score, data.streak, created_at)
-        )
-        conn.close()
-        return {"success": True, "message": "Score saved successfully!"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-@app.get("/quiz/leaderboard")
-def get_quiz_leaderboard():
-    if not MYSQL_HOST:
-        return {"leaderboard": []}
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT username, MAX(score) as high_score, MAX(streak) as max_streak 
-            FROM quiz_scores 
-            GROUP BY username 
-            ORDER BY high_score DESC LIMIT 5
-            """
-        )
-        scores = cursor.fetchall()
-        conn.close()
-        return {"leaderboard": scores}
-    except Exception as e:
-        return {"leaderboard": [], "error": str(e)}
-
-
 @app.post("/users/delete-me")
 def delete_own_account(user: UserAuth):
     if not MYSQL_HOST:
@@ -340,6 +286,21 @@ def delete_own_account(user: UserAuth):
             raise HTTPException(status_code=401, detail="Invalid password verification.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.get("/users/count")
+def get_user_count():
+    if not MYSQL_HOST:
+        return {"total_users": 0}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) AS total FROM users")
+        result = cursor.fetchone()
+        conn.close()
+        return {"total_users": result["total"]}
+    except Exception as e:
+        return {"total_users": 0, "error": str(e)}
 
 
 @app.delete("/admin/users/{user_id}")
@@ -381,10 +342,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         total_preds_res = cursor.fetchone()
         total_preds = total_preds_res["total_preds"] if total_preds_res and total_preds_res["total_preds"] else 0
 
-        cursor.execute(
-            "SELECT username, MAX(score) as high_score FROM quiz_scores GROUP BY username ORDER BY high_score DESC LIMIT 5")
-        top_quizzers = cursor.fetchall()
-
         conn.close()
 
         rows = ""
@@ -415,14 +372,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             </div>
             """
 
-        quiz_rows = ""
-        for q in top_quizzers:
-            quiz_rows += f"""
-            <li style="color:#ddd; margin-bottom:4px; font-size:13px;">
-                <b style="color:#fff;">@{q['username']}</b> — <span style="color:#4af6c6;">{q['high_score']} PTS</span>
-            </li>
-            """
-
         review_rows = ""
         for r in reviews:
             rev_date = convert_to_ist_str(r['created_at'])
@@ -442,7 +391,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             <title>Admin Dashboard & Analytics</title>
             <style>
                 body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
-                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 900px; text-align: center; }}
+                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 850px; text-align: center; }}
                 h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
                 .stats-container {{ display: flex; gap: 15px; justify-content: center; margin-bottom: 20px; }}
                 .stat-box {{ background: #2a2a2a; border: 1px solid #333; border-radius: 8px; padding: 12px 20px; flex: 1; }}
@@ -498,7 +447,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     </div>
                     <div class="stat-box">
                         <div class="stat-num">{len(reviews)}</div>
-                        <div class="stat-label">User Reviews</div>
+                        <div class="stat-label">Reviews Received</div>
                     </div>
                 </div>
 
@@ -522,18 +471,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     </tbody>
                 </table>
 
-                <div style="display:flex; gap:15px; text-align:left;">
-                    <div style="flex:1; background:#181818; border:1px solid #333; border-radius:8px; padding:15px;">
-                        <h3 style="margin-top:0; color:#fff; font-size:14px;">🏆 TOP QUIZ SCORES</h3>
-                        <ul style="padding-left:20px; margin-bottom:0;">
-                            {quiz_rows if quiz_rows else '<li style="color:#888; font-size:12px;">No quiz records yet.</li>'}
-                        </ul>
-                    </div>
-                    <div style="flex:1; background:#181818; border:1px solid #333; border-radius:8px; padding:15px;">
-                        <h3 style="margin-top:0; color:#fff; font-size:14px;">💬 LATEST REVIEWS</h3>
-                        {review_rows if review_rows else '<div style="color:#888; font-size:12px;">No reviews submitted yet.</div>'}
-                    </div>
-                </div>
+                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; margin-top:20px; text-align:left;">💬 USER REVIEWS</h3>
+                {review_rows if review_rows else '<div style="color:#888; font-size:13px;">No reviews submitted yet.</div>'}
             </div>
         </body>
         </html>
@@ -548,6 +487,13 @@ def serve_frontend():
     if os.path.exists(INDEX_PATH):
         return FileResponse(INDEX_PATH)
     return {"error": "index.html file missing on server"}
+
+
+@app.get("/tutorial")
+def serve_tutorial():
+    if os.path.exists(TUTORIAL_PATH):
+        return FileResponse(TUTORIAL_PATH)
+    return {"error": "tutorial.html file missing on server"}
 
 
 @app.get("/health")
@@ -590,7 +536,6 @@ async def predict_sign(file: UploadFile = File(...)):
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
 
-    # Log prediction analytics asynchronously into MySQL
     if MYSQL_HOST:
         try:
             conn = get_db_connection()

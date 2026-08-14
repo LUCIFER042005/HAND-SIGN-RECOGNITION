@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Sign Recognition & Learning Arena</title>
+    <title>Hand Sign Recognition & Sentence Builder</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; text-align: center; }
-        .container { max-width: 800px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-        h1 { color: #4af6c6; margin-bottom: 5px; font-size: 26px; }
+        .container { max-width: 650px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        h1 { color: #4af6c6; margin-bottom: 5px; font-size: 24px; }
         .user-counter { font-size: 13px; color: #aaa; margin-bottom: 20px; }
         .user-counter span { color: #4af6c6; font-weight: bold; }
 
@@ -16,12 +16,7 @@
         .auth-card input, .panel-card input, .panel-card textarea { width: 90%; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #444; background: #121212; color: white; font-family: inherit; }
         .auth-btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
 
-        /* Navigation Tabs */
-        .nav-tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-        .tab-btn { background: #2a2a2a; border: 1px solid #444; color: #bbb; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .tab-btn.active { background: #4af6c6; color: #121212; border-color: #4af6c6; }
-
-        /* App Sections */
+        /* App Styles */
         #appSection { display: none; }
         .video-wrapper { position: relative; width: 100%; max-width: 480px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: #000; }
         video { width: 100%; height: auto; transform: scaleX(-1); display: block; }
@@ -42,30 +37,18 @@
         .status-indicator { font-size: 12px; color: #888; margin-top: 4px; }
         .shortcut-badge { background: #333; color: #4af6c6; padding: 2px 8px; border-radius: 4px; border: 1px solid #4af6c6; font-weight: bold; }
         .user-bar { display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 8px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; }
-        .user-actions { display: flex; gap: 6px; }
+        .user-actions { display: flex; gap: 6px; align-items: center; }
 
         /* Panel Modal */
         #userPanel { display: none; background: #2a2a2a; padding: 20px; border-radius: 12px; margin-bottom: 15px; text-align: left; border: 1px solid #4af6c6; }
         .panel-section { margin-bottom: 15px; }
         .panel-title { font-size: 14px; font-weight: bold; color: #4af6c6; margin-bottom: 5px; }
-
-        /* Tutorial & Practice Mode Styles */
-        .tutorial-container { text-align: left; }
-        .progress-bar-bg { background: #333; border-radius: 20px; height: 12px; overflow: hidden; margin: 10px 0 20px 0; }
-        .progress-bar-fill { background: #4af6c6; height: 100%; width: 0%; transition: width 0.3s ease; }
-        .signs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .sign-card { background: #2a2a2a; border: 2px solid #444; border-radius: 10px; padding: 12px 5px; text-align: center; cursor: pointer; transition: 0.2s; font-size: 20px; font-weight: bold; position: relative; }
-        .sign-card:hover { border-color: #4af6c6; transform: translateY(-2px); }
-        .sign-card.selected { border-color: #4af6c6; background: #1b3d35; color: #4af6c6; }
-        .sign-card.mastered::after { content: "✓"; position: absolute; top: 2px; right: 5px; font-size: 11px; color: #4af6c6; font-weight: bold; }
-        .practice-banner { background: #2a2a2a; border: 1px solid #333; border-radius: 10px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .practice-target { font-size: 32px; font-weight: bold; color: #4af6c6; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🖐️ Hand Sign Recognition Arena</h1>
+    <h1>Hand Sign Recognition</h1>
     <div class="user-counter">👥 Total Registered Users: <span id="totalUserCount">0</span></div>
 
     <!-- LOGIN / REGISTER SECTION -->
@@ -86,6 +69,7 @@
         <div class="user-bar">
             <span>Welcome, <b id="loggedInUser" style="color:#4af6c6;">User</b>!</span>
             <div class="user-actions">
+                <a href="/tutorial" target="_blank" style="padding: 5px 12px; font-size: 12px; background:#ffb84d; color:#121212; border-radius:6px; text-decoration:none; font-weight:bold; display:inline-block;">📖 Tutorial Guide</a>
                 <button onclick="toggleUserPanel()" style="padding: 4px 10px; font-size: 12px; background:#4af6c6; color:#121212; border:none;">⚙️ Profile</button>
                 <button onclick="handleLogout()" style="padding: 4px 10px; font-size: 12px;">Logout</button>
             </div>
@@ -119,66 +103,32 @@
             <p id="panelMsg" style="font-size: 12px; color: #4af6c6; margin: 5px 0;"></p>
         </div>
 
-        <!-- TAB NAVIGATION -->
-        <div class="nav-tabs">
-            <button class="tab-btn active" id="tabPracticeBtn" onclick="switchTab('practice')">📖 Learn & Practice Tutorial</button>
-            <button class="tab-btn" id="tabSentenceBtn" onclick="switchTab('sentence')">✍️ Sentence Builder</button>
-        </div>
-
-        <!-- SHARED CAMERA FEED -->
         <div class="video-wrapper">
             <video id="webcam" autoplay playsinline></video>
         </div>
         <canvas id="canvas"></canvas>
 
         <div class="prediction-box">
-            Current Sign Detected: <span id="currentSign" class="predicted-char">-</span>
-            <div id="statusIndicator" class="status-indicator">Point your hand at the camera</div>
+            Current Sign: <span id="currentSign" class="predicted-char">-</span>
+            <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press <span class="shortcut-badge">S</span> to toggle.</div>
         </div>
 
-        <!-- VIEW 1: TUTORIAL & PRACTICE -->
-        <div id="tutorialView" class="tutorial-container">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-                <b style="color:#fff; font-size:14px;">🎓 YOUR LEARNING PROGRESS</b>
-                <span id="progressText" style="color:#4af6c6; font-size:13px; font-weight:bold;">0 / 24 Mastered (0%)</span>
-            </div>
-            <div class="progress-bar-bg">
-                <div id="progressBarFill" class="progress-bar-fill"></div>
-            </div>
+        <div class="sentence-container">
+            <div class="sentence-label">Sentence Builder</div>
+            <div id="sentenceBox" class="sentence-box"></div>
 
-            <div class="practice-banner">
-                <div>
-                    <div style="font-size:12px; color:#aaa;">CURRENT TARGET TO PRACTICE:</div>
-                    <div style="font-size:15px; color:#fff; margin-top:3px;" id="targetDesc">Select any letter below to practice!</div>
-                </div>
-                <div class="practice-target" id="currentTargetDisplay">A</div>
-            </div>
-
-            <h4 style="color:#aaa; font-size:12px; text-transform:uppercase; margin-bottom:10px;">Click any sign to practice with webcam:</h4>
-            <div class="signs-grid" id="signsGrid">
-                <!-- Populated dynamically via JS -->
+            <div class="controls">
+                <button class="primary" onclick="addCurrentSign()">Add Sign Now</button>
+                <button onclick="addSpace()">Space [ ]</button>
+                <button onclick="backspace()">Backspace ⌫</button>
+                <button class="danger" onclick="clearSentence()">Clear 🗑️</button>
             </div>
         </div>
 
-        <!-- VIEW 2: SENTENCE BUILDER -->
-        <div id="sentenceView" style="display:none;">
-            <div class="sentence-container">
-                <div class="sentence-label">Sentence Builder</div>
-                <div id="sentenceBox" class="sentence-box"></div>
-
-                <div class="controls">
-                    <button class="primary" onclick="addCurrentSign()">Add Sign Now</button>
-                    <button onclick="addSpace()">Space [ ]</button>
-                    <button onclick="backspace()">Backspace ⌫</button>
-                    <button class="danger" onclick="clearSentence()">Clear 🗑️</button>
-                </div>
-            </div>
-
-            <div class="toggle-container">
-                <label>
-                    <input type="checkbox" id="sentenceBuilderToggle"> Auto-Append when Held (<span class="shortcut-badge">S</span>)
-                </label>
-            </div>
+        <div class="toggle-container">
+            <label>
+                <input type="checkbox" id="sentenceBuilderToggle"> Sentence Builder Active (<span class="shortcut-badge">S</span>)
+            </label>
         </div>
     </div>
 </div>
@@ -199,16 +149,6 @@
     const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
 
-    const tutorialView = document.getElementById('tutorialView');
-    const sentenceView = document.getElementById('sentenceView');
-    const tabPracticeBtn = document.getElementById('tabPracticeBtn');
-    const tabSentenceBtn = document.getElementById('tabSentenceBtn');
-    const signsGrid = document.getElementById('signsGrid');
-    const currentTargetDisplay = document.getElementById('currentTargetDisplay');
-    const targetDesc = document.getElementById('targetDesc');
-    const progressText = document.getElementById('progressText');
-    const progressBarFill = document.getElementById('progressBarFill');
-
     let currentPredictedSign = "";
     let lastSign = "";
     let signHoldStartTime = null;
@@ -217,101 +157,6 @@
     let activeUsername = "";
     let activePassword = "";
     const HOLD_THRESHOLD_MS = 1200;
-
-    // --- TUTORIAL & PRACTICE STATE ---
-    const allSigns = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y"];
-    let selectedSign = "A";
-    let masteredSigns = new Set();
-    let correctHoldFrames = 0;
-    let currentActiveTab = 'practice';
-
-    function initSignsGrid() {
-        signsGrid.innerHTML = "";
-        allSigns.forEach(letter => {
-            const card = document.createElement('div');
-            card.className = `sign-card ${letter === selectedSign ? 'selected' : ''} ${masteredSigns.has(letter) ? 'mastered' : ''}`;
-            card.id = `card-${letter}`;
-            card.innerText = letter;
-            card.onclick = () => selectTutorialSign(letter);
-            signsGrid.appendChild(card);
-        });
-        updateProgressUI();
-    }
-
-    function selectTutorialSign(letter) {
-        selectedSign = letter;
-        correctHoldFrames = 0;
-        currentTargetDisplay.innerText = letter;
-        targetDesc.innerText = `Make sign for '${letter}' in front of the camera.`;
-
-        document.querySelectorAll('.sign-card').forEach(card => card.classList.remove('selected'));
-        const activeCard = document.getElementById(`card-${letter}`);
-        if (activeCard) activeCard.classList.add('selected');
-    }
-
-    function updateProgressUI() {
-        const count = masteredSigns.size;
-        const total = allSigns.length;
-        const percent = Math.round((count / total) * 100);
-        progressText.innerText = `${count} / ${total} Mastered (${percent}%)`;
-        progressBarFill.style.width = `${percent}%`;
-    }
-
-    function switchTab(tab) {
-        currentActiveTab = tab;
-        if (tab === 'practice') {
-            tutorialView.style.display = 'block';
-            sentenceView.style.display = 'none';
-            tabPracticeBtn.classList.add('active');
-            tabSentenceBtn.classList.remove('active');
-            sentenceBuilderToggle.checked = false;
-        } else {
-            tutorialView.style.display = 'none';
-            sentenceView.style.display = 'block';
-            tabSentenceBtn.classList.add('active');
-            tabPracticeBtn.classList.remove('active');
-        }
-    }
-
-    function playSuccessChime() {
-        try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            const ctx = new AudioCtx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-            gain.gain.setValueAtTime(0.15, ctx.currentTime);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.15);
-        } catch(e){}
-    }
-
-    function verifyPracticeTarget(predicted) {
-        if (currentActiveTab !== 'practice') return;
-
-        if (predicted === selectedSign) {
-            correctHoldFrames++;
-            statusIndicator.innerText = `Matching sign '${selectedSign}'! (${correctHoldFrames}/3 frames)`;
-            statusIndicator.style.color = "#4af6c6";
-
-            if (correctHoldFrames >= 3) {
-                masteredSigns.add(selectedSign);
-                const card = document.getElementById(`card-${selectedSign}`);
-                if (card) card.classList.add('mastered');
-                updateProgressUI();
-                targetDesc.innerText = `🎉 Mastered sign '${selectedSign}'! Great job!`;
-                playSuccessChime();
-                correctHoldFrames = 0;
-            }
-        } else {
-            correctHoldFrames = 0;
-            statusIndicator.innerText = `Detected '${predicted}' — Show sign '${selectedSign}'`;
-            statusIndicator.style.color = "#888";
-        }
-    }
 
     async function fetchUserCount() {
         try {
@@ -378,11 +223,9 @@
                 appSection.style.display = 'block';
                 loggedInUserSpan.innerText = data.username;
 
-                initSignsGrid();
-                selectTutorialSign('A');
                 startWebcam();
                 if (!processIntervalId) {
-                    processIntervalId = setInterval(processFrame, 500);
+                    processIntervalId = setInterval(processFrame, 600);
                 }
             } else {
                 authMsg.style.color = "#ff4d4d";
@@ -498,19 +341,17 @@
     }
 
     window.addEventListener('keydown', (e) => {
-        if (appSection.style.display === 'block' && currentActiveTab === 'sentence' && (e.key === 's' || e.key === 'S')) {
+        if (appSection.style.display === 'block' && (e.key === 's' || e.key === 'S')) {
             sentenceBuilderToggle.checked = !sentenceBuilderToggle.checked;
             updateStatusText();
             if (!sentenceBuilderToggle.checked) resetHoldTimer();
         }
     });
 
-    if (sentenceBuilderToggle) {
-        sentenceBuilderToggle.addEventListener('change', () => {
-            updateStatusText();
-            if (!sentenceBuilderToggle.checked) resetHoldTimer();
-        });
-    }
+    sentenceBuilderToggle.addEventListener('change', () => {
+        updateStatusText();
+        if (!sentenceBuilderToggle.checked) resetHoldTimer();
+    });
 
     function updateStatusText() {
         if (sentenceBuilderToggle.checked) {
@@ -547,22 +388,13 @@
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
 
-                    // 1. Process Tutorial practice
-                    if (currentActiveTab === 'practice') {
-                        verifyPracticeTarget(currentPredictedSign);
-                    }
-
-                    // 2. Process Sentence builder
-                    if (currentActiveTab === 'sentence' && sentenceBuilderToggle.checked) {
+                    if (sentenceBuilderToggle.checked) {
                         handleAutoAppend(currentPredictedSign);
                     }
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
                     resetHoldTimer();
-                    if (currentActiveTab === 'practice') {
-                        correctHoldFrames = 0;
-                    }
                 }
             } catch (err) {
                 console.error("Prediction error:", err);
@@ -595,7 +427,7 @@
     function resetHoldTimer() {
         lastSign = "";
         signHoldStartTime = null;
-        if (currentActiveTab === 'sentence') updateStatusText();
+        updateStatusText();
     }
 
     function addCurrentSign() {
