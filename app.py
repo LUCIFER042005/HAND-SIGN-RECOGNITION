@@ -1,6 +1,5 @@
 import io
 import pickle
-import hashlib
 import os
 import secrets
 from datetime import datetime, timezone, timedelta
@@ -34,9 +33,11 @@ def convert_to_ist_str(dt_val):
             dt_val = datetime.strptime(dt_val, "%Y-%m-%d %H:%M:%S")
         except ValueError:
             return dt_val
-    # Add UTC timezone if naive, then convert to IST (+5:30)
-    utc_dt = dt_val.replace(tzinfo=timezone.utc)
-    ist_dt = utc_dt.astimezone(IST)
+    if dt_val.tzinfo is None:
+        utc_dt = dt_val.replace(tzinfo=timezone.utc)
+        ist_dt = utc_dt.astimezone(IST)
+    else:
+        ist_dt = dt_val.astimezone(IST)
     return ist_dt.strftime("%b %d, %Y, %I:%M %p IST")
 
 
@@ -132,10 +133,6 @@ class UserReview(BaseModel):
     review: str
 
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
 model = None
 hands = None
 
@@ -165,12 +162,11 @@ def register(user: UserAuth):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        hashed_pwd = hash_password(user.password)
-        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
-            (user.username, hashed_pwd, created_at)
+            (user.username, user.password, created_at)
         )
         conn.close()
         return {"success": True, "message": "Account created successfully!"}
@@ -187,11 +183,10 @@ def login(user: UserAuth):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        hashed_pwd = hash_password(user.password)
 
         cursor.execute(
             "SELECT id, username FROM users WHERE username = %s AND password = %s",
-            (user.username, hashed_pwd)
+            (user.username, user.password)
         )
         db_user = cursor.fetchone()
         conn.close()
@@ -211,12 +206,10 @@ def change_password(data: ChangePassword):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        hashed_old = hash_password(data.old_password)
-        hashed_new = hash_password(data.new_password)
 
         cursor.execute(
             "UPDATE users SET password = %s WHERE username = %s AND password = %s",
-            (hashed_new, data.username, hashed_old)
+            (data.new_password, data.username, data.old_password)
         )
         affected = cursor.rowcount
         conn.close()
@@ -236,7 +229,7 @@ def submit_review(data: UserReview):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute(
             "INSERT INTO reviews (username, review, created_at) VALUES (%s, %s, %s)",
@@ -255,11 +248,10 @@ def delete_own_account(user: UserAuth):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        hashed_pwd = hash_password(user.password)
 
         cursor.execute(
             "DELETE FROM users WHERE username = %s AND password = %s",
-            (user.username, hashed_pwd)
+            (user.username, user.password)
         )
         affected_rows = cursor.rowcount
         conn.close()
@@ -313,7 +305,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Selected password column from users table
         cursor.execute("SELECT id, username, password, created_at FROM users ORDER BY id ASC")
         users = cursor.fetchall()
 
@@ -324,14 +315,14 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         rows = ""
         for index, user in enumerate(users, start=1):
             created_str = convert_to_ist_str(user['created_at'])
-            pwd_hash = user.get('password', 'N/A')
+            raw_pwd = user.get('password', 'N/A')
             rows += f"""
             <tr>
                 <td><b>{index}</b></td>
                 <td class="user-name">{user['username']}</td>
                 <td>
-                    <span id="pwd-{user['id']}" style="font-family:monospace; color:#aaa; font-size:11px;">••••••••••••</span>
-                    <button class="btn-toggle" onclick="togglePassword({user['id']}, '{pwd_hash}')">👁</button>
+                    <span id="pwd-{user['id']}" style="font-family:monospace; color:#aaa; font-size:13px;">••••••••••••</span>
+                    <button class="btn-toggle" onclick="togglePassword({user['id']}, '{raw_pwd}')">👁</button>
                 </td>
                 <td style="color:#4af6c6;">{created_str}</td>
                 <td>
@@ -373,14 +364,14 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 .btn-del:hover {{ background: #e03e3e; }}
             </style>
             <script>
-                function togglePassword(id, hash) {{
+                function togglePassword(id, pwd) {{
                     const el = document.getElementById('pwd-' + id);
                     if (el.innerText.includes('•')) {{
-                        el.innerText = hash.substring(0, 16) + '...';
-                        el.title = hash;
+                        el.innerText = pwd;
+                        el.style.color = '#fff';
                     }} else {{
                         el.innerText = '••••••••••••';
-                        el.title = '';
+                        el.style.color = '#aaa';
                     }}
                 }}
 
@@ -406,7 +397,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         <tr>
                             <th>SR NO.</th>
                             <th>USERNAME</th>
-                            <th>PASSWORD (HASH)</th>
+                            <th>PASSWORD</th>
                             <th>JOINED (IST TIME)</th>
                             <th>ACTION</th>
                         </tr>
