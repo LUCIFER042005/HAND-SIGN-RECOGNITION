@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Sign Recognition & Sentence Builder</title>
+    <title>Hand Sign Recognition & Learning Arena</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; text-align: center; }
-        .container { max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        .container { max-width: 650px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
         h1 { color: #4af6c6; margin-bottom: 5px; font-size: 24px; }
         .user-counter { font-size: 13px; color: #aaa; margin-bottom: 20px; }
         .user-counter span { color: #4af6c6; font-weight: bold; }
@@ -33,6 +33,8 @@
         button.primary:hover { background: #3be0b3; }
         button.danger { background: #ff4d4d; border: none; }
         button.danger:hover { background: #e03e3e; }
+        button.warning { background: #ffb84d; color: #121212; border: none; }
+        button.warning:hover { background: #e6a03c; }
         .toggle-container { margin: 15px 0; display: flex; align-items: center; justify-content: center; gap: 15px; font-size: 14px; }
         .status-indicator { font-size: 12px; color: #888; margin-top: 4px; }
         .shortcut-badge { background: #333; color: #4af6c6; padding: 2px 8px; border-radius: 4px; border: 1px solid #4af6c6; font-weight: bold; }
@@ -43,6 +45,12 @@
         #userPanel { display: none; background: #2a2a2a; padding: 20px; border-radius: 12px; margin-bottom: 15px; text-align: left; border: 1px solid #4af6c6; }
         .panel-section { margin-bottom: 15px; }
         .panel-title { font-size: 14px; font-weight: bold; color: #4af6c6; margin-bottom: 5px; }
+
+        /* Quiz Component Styles */
+        .quiz-card { background: #222; border: 2px solid #ffb84d; border-radius: 12px; padding: 18px; margin-top: 20px; text-align: center; }
+        .quiz-stats { display: flex; justify-content: space-around; margin-bottom: 12px; font-size: 15px; }
+        .quiz-target-box { background: #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .quiz-char { font-size: 42px; font-weight: bold; color: #ffb84d; margin: 4px 0; }
     </style>
 </head>
 <body>
@@ -112,6 +120,30 @@
             <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press <span class="shortcut-badge">S</span> to toggle.</div>
         </div>
 
+        <!-- PRACTICE QUIZ SECTION -->
+        <div class="quiz-card">
+            <h3 style="margin-top:0; color:#ffb84d;">🎯 INTERACTIVE SIGN QUIZ</h3>
+
+            <div id="quizIdle">
+                <p style="color:#bbb; font-size:13px; margin: 6px 0 14px 0;">Test your skills! The AI will challenge you to show specific signs to the camera.</p>
+                <button class="warning" onclick="startQuiz()">START PRACTICE QUIZ</button>
+            </div>
+
+            <div id="quizActive" style="display:none;">
+                <div class="quiz-stats">
+                    <div>Score: <b id="quizScore" style="color:#4af6c6;">0</b></div>
+                    <div>Streak: <b id="quizStreak" style="color:#ffb84d;">🔥 0</b></div>
+                </div>
+                <div class="quiz-target-box">
+                    <div style="font-size:12px; color:#aaa;">Show this sign to the webcam:</div>
+                    <div id="targetSign" class="quiz-char">?</div>
+                    <div id="quizFeedback" style="font-size:13px; color:#aaa;">Hold sign steadily...</div>
+                </div>
+                <button class="danger" onclick="stopQuiz()" style="padding:6px 14px; font-size:12px;">End Quiz</button>
+            </div>
+        </div>
+
+        <!-- SENTENCE BUILDER SECTION -->
         <div class="sentence-container">
             <div class="sentence-label">Sentence Builder</div>
             <div id="sentenceBox" class="sentence-box"></div>
@@ -156,6 +188,14 @@
     let activeUsername = "";
     let activePassword = "";
     const HOLD_THRESHOLD_MS = 1200;
+
+    // --- QUIZ STATE ---
+    let quizRunning = false;
+    let currentScore = 0;
+    let currentStreak = 0;
+    let currentTarget = "";
+    let correctHoldFrames = 0;
+    const availableSigns = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y"];
 
     async function fetchUserCount() {
         try {
@@ -224,7 +264,7 @@
 
                 startWebcam();
                 if (!processIntervalId) {
-                    processIntervalId = setInterval(processFrame, 600);
+                    processIntervalId = setInterval(processFrame, 500);
                 }
             } else {
                 authMsg.style.color = "#ff4d4d";
@@ -387,13 +427,22 @@
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
 
-                    if (sentenceBuilderToggle.checked) {
+                    // 1. Process Practice Quiz (if active)
+                    if (quizRunning) {
+                        verifyQuizPrediction(currentPredictedSign);
+                    }
+
+                    // 2. Process Sentence Builder (if active)
+                    if (sentenceBuilderToggle.checked && !quizRunning) {
                         handleAutoAppend(currentPredictedSign);
                     }
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
                     resetHoldTimer();
+                    if (quizRunning) {
+                        correctHoldFrames = 0;
+                    }
                 }
             } catch (err) {
                 console.error("Prediction error:", err);
@@ -439,6 +488,85 @@
     function addSpace() { sentenceBox.innerText += " "; }
     function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
     function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
+
+    // --- QUIZ LOGIC ---
+    function startQuiz() {
+        quizRunning = true;
+        currentScore = 0;
+        currentStreak = 0;
+        sentenceBuilderToggle.checked = false;
+        updateStatusText();
+
+        document.getElementById("quizScore").innerText = currentScore;
+        document.getElementById("quizStreak").innerText = "🔥 " + currentStreak;
+        document.getElementById("quizIdle").style.display = "none";
+        document.getElementById("quizActive").style.display = "block";
+        nextQuizTarget();
+    }
+
+    function nextQuizTarget() {
+        correctHoldFrames = 0;
+        currentTarget = availableSigns[Math.floor(Math.random() * availableSigns.length)];
+        document.getElementById("targetSign").innerText = currentTarget;
+        document.getElementById("quizFeedback").innerText = "Show sign '" + currentTarget + "' to camera...";
+        document.getElementById("quizFeedback").style.color = "#aaa";
+    }
+
+    function playSuccessChime() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5 tone
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.15);
+        } catch(e){}
+    }
+
+    function verifyQuizPrediction(predictedChar) {
+        if (!quizRunning) return;
+
+        if (predictedChar === currentTarget) {
+            correctHoldFrames++;
+            document.getElementById("quizFeedback").innerText = `Great! Hold steady... (${correctHoldFrames}/2)`;
+            document.getElementById("quizFeedback").style.color = "#4af6c6";
+
+            if (correctHoldFrames >= 2) {
+                currentScore += 10;
+                currentStreak += 1;
+                document.getElementById("quizScore").innerText = currentScore;
+                document.getElementById("quizStreak").innerText = "🔥 " + currentStreak;
+                document.getElementById("quizFeedback").innerText = "🌟 Perfect! +10 Points";
+                playSuccessChime();
+
+                setTimeout(nextQuizTarget, 600);
+            }
+        } else {
+            correctHoldFrames = 0;
+        }
+    }
+
+    async function stopQuiz() {
+        quizRunning = false;
+        document.getElementById("quizIdle").style.display = "block";
+        document.getElementById("quizActive").style.display = "none";
+
+        if (currentScore > 0) {
+            try {
+                await fetch('/quiz/submit-score', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: activeUsername, score: currentScore, streak: currentStreak })
+                });
+            } catch(e){}
+            alert(`Quiz ended! Final Score: ${currentScore} | Best Streak: ${currentStreak}`);
+        }
+    }
 
     fetchUserCount();
 </script>
