@@ -1,5 +1,6 @@
 import io
 import pickle
+import hashlib
 import os
 import secrets
 from datetime import datetime, timezone, timedelta
@@ -39,6 +40,10 @@ def convert_to_ist_str(dt_val):
     else:
         ist_dt = dt_val.astimezone(IST)
     return ist_dt.strftime("%b %d, %Y, %I:%M %p IST")
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
 def authenticate_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -183,10 +188,15 @@ def login(user: UserAuth):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        hashed_pwd = hash_password(user.password)
 
+        # Hybrid matching: Checks both plain text and SHA-256 hash
         cursor.execute(
-            "SELECT id, username FROM users WHERE username = %s AND password = %s",
-            (user.username, user.password)
+            """
+            SELECT id, username FROM users 
+            WHERE username = %s AND (password = %s OR password = %s)
+            """,
+            (user.username, user.password, hashed_pwd)
         )
         db_user = cursor.fetchone()
         conn.close()
@@ -206,10 +216,15 @@ def change_password(data: ChangePassword):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        hashed_old = hash_password(data.old_password)
 
+        # Hybrid matching for old password verification
         cursor.execute(
-            "UPDATE users SET password = %s WHERE username = %s AND password = %s",
-            (data.new_password, data.username, data.old_password)
+            """
+            UPDATE users SET password = %s 
+            WHERE username = %s AND (password = %s OR password = %s)
+            """,
+            (data.new_password, data.username, data.old_password, hashed_old)
         )
         affected = cursor.rowcount
         conn.close()
@@ -248,10 +263,15 @@ def delete_own_account(user: UserAuth):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        hashed_pwd = hash_password(user.password)
 
+        # Hybrid matching for account deletion
         cursor.execute(
-            "DELETE FROM users WHERE username = %s AND password = %s",
-            (user.username, user.password)
+            """
+            DELETE FROM users 
+            WHERE username = %s AND (password = %s OR password = %s)
+            """,
+            (user.username, user.password, hashed_pwd)
         )
         affected_rows = cursor.rowcount
         conn.close()
