@@ -515,20 +515,31 @@ async def predict_sign(file: UploadFile = File(...)):
             "message": "No hand landmarks detected",
         }
 
-    data_aux = []
-    x_ = []
-    y_ = []
-
     hand_landmarks = results.multi_hand_landmarks[0]
 
-    for i in range(len(hand_landmarks.landmark)):
-        x_.append(hand_landmarks.landmark[i].x)
-        y_.append(hand_landmarks.landmark[i].y)
+    # 1. Bounding box coordinates for UI overlay
+    x_ = [lm.x for lm in hand_landmarks.landmark]
+    y_ = [lm.y for lm in hand_landmarks.landmark]
 
-    for i in range(len(hand_landmarks.landmark)):
-        data_aux.append(hand_landmarks.landmark[i].x - min(x_))
-        data_aux.append(hand_landmarks.landmark[i].y - min(y_))
+    # 2. Wrist-relative centering
+    wrist_x = hand_landmarks.landmark[0].x
+    wrist_y = hand_landmarks.landmark[0].y
 
+    relative_coords = []
+    for lm in hand_landmarks.landmark:
+        relative_coords.append([lm.x - wrist_x, lm.y - wrist_y])
+
+    relative_coords = np.array(relative_coords)
+
+    # 3. Scale normalization (matches create_dataset.py)
+    max_dist = np.max(np.sqrt(np.sum(relative_coords**2, axis=1)))
+    if max_dist == 0:
+        max_dist = 1e-6
+
+    normalized = relative_coords / max_dist
+    data_aux = normalized.flatten().tolist()
+
+    # 4. Predict
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
 
