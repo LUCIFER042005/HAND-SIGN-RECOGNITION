@@ -27,6 +27,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def convert_to_ist_str(dt_val):
+    """Format stored datetime string/object directly without double-shifting timezone."""
     if not dt_val:
         return "-"
     if isinstance(dt_val, str):
@@ -34,12 +35,7 @@ def convert_to_ist_str(dt_val):
             dt_val = datetime.strptime(dt_val, "%Y-%m-%d %H:%M:%S")
         except ValueError:
             return dt_val
-    if dt_val.tzinfo is None:
-        utc_dt = dt_val.replace(tzinfo=timezone.utc)
-        ist_dt = utc_dt.astimezone(IST)
-    else:
-        ist_dt = dt_val.astimezone(IST)
-    return ist_dt.strftime("%b %d, %Y, %I:%M %p IST")
+    return dt_val.strftime("%b %d, %Y, %I:%M %p IST")
 
 
 def hash_password(password: str) -> str:
@@ -119,7 +115,7 @@ def init_db():
         """)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS prediction_analytics (
-                predicted_char VARCHAR(10) PRIMARY KEY,
+                predicted_char VARCHAR(20) PRIMARY KEY,
                 count INT DEFAULT 1
             )
         """)
@@ -367,7 +363,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         for a in analytics:
             analytics_badges += f"""
             <div style="background:#222; border:1px solid #4af6c6; border-radius:8px; padding:8px 14px; margin:4px; display:inline-block;">
-                <span style="font-size:18px; font-weight:bold; color:#fff;">{a['predicted_char']}</span>
+                <span style="font-size:16px; font-weight:bold; color:#fff;">{a['predicted_char']}</span>
                 <span style="color:#4af6c6; font-size:12px; margin-left:6px;">{a['count']}x</span>
             </div>
             """
