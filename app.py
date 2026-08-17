@@ -2,8 +2,10 @@ import io
 import pickle
 import hashlib
 import os
+import re
 import secrets
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 import pymysql
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -124,6 +126,7 @@ def init_db():
         print(f"Database initialization error: {e}")
 
 
+# --- Pydantic Models ---
 class UserAuth(BaseModel):
     username: str
     password: str
@@ -139,6 +142,39 @@ class UserReview(BaseModel):
     username: str
     review: str
 
+
+class CoachQuery(BaseModel):
+    query: str
+    current_sign: Optional[str] = None
+
+
+# --- AI Sign Coach Knowledge Base ---
+SIGN_KNOWLEDGE = {
+    "A": "Make a closed fist facing forward with all 4 fingers folded down and thumb resting upright along the side of the index finger.",
+    "B": "Hold all 4 fingers straight up together, folding your thumb flat across your palm.",
+    "C": "Curve your fingers and thumb sideways in an open arc to form the shape of the letter 'C'.",
+    "D": "Point your index finger straight up into the air with the other fingers curled closed.",
+    "E": "Curl all four fingertips tightly down into your palm with thumb tucked underneath.",
+    "F": "Touch your index finger and thumb tip together in a circle, holding middle, ring, and pinky straight up.",
+    "G": "Point your index finger horizontally to the side with thumb held parallel.",
+    "H": "Extend both your index and middle fingers straight up together with thumb holding remaining fingers down.",
+    "I": "Make a closed fist and extend only your pinky finger straight up into the air.",
+    "J": "Hold your pinky finger straight up, ready to trace the 'J' letter curve in the air.",
+    "K": "Point index and middle fingers in an angled 'V' with thumb placed directly between them.",
+    "L": "Extend your index finger straight up and thumb outward to make a crisp 'L' shape.",
+    "N": "Make a fist facing forward with your thumb folded tightly under the front fingers.",
+    "O": "Touch all fingertips and thumb together in a circular ring 'O' shape.",
+    "P": "Hand tilted pointing index finger forward and downward horizontally.",
+    "Q": "Point both your index finger and thumb downward in a pinch grip.",
+    "R": "Cross your middle finger over your index finger like making a lucky wish.",
+    "U": "Extend your index and pinky fingers upright while holding middle and ring fingers closed down.",
+    "V": "Extend index and middle fingers straight up and spread them apart in a peace sign.",
+    "W": "Hold index, middle, and ring fingers straight up and spread apart like a 'W'.",
+    "X": "Make a fist with only the index finger raised and bent down into a small hook shape.",
+    "Y": "Make a fist and extend only your thumb and pinky finger outward (hang loose / shaka sign).",
+    "DELETE": "Raise index and pinky fingers upright with middle and ring fingers closed (horns pose) to delete.",
+    "SPACE": "Extend thumb, index, and pinky fingers outward with middle and ring folded (3-finger open pose) to insert a space."
+}
 
 model = None
 hands = None
@@ -494,6 +530,78 @@ def serve_tutorial():
 @app.get("/health")
 def health_check():
     return {"status": "online", "model_loaded": model is not None}
+
+
+# --- AI SIGN COACH ENDPOINT (Zero Database Storage) ---
+@app.post("/ai-coach")
+def ai_coach_assist(data: CoachQuery):
+    query = data.query.strip().upper()
+    current_sign = data.current_sign.upper() if data.current_sign else None
+
+    # Check for specific signs mentioned
+    found_sign = None
+    if "SPACE" in query:
+        found_sign = "SPACE"
+    elif "DELETE" in query or "BACKSPACE" in query:
+        found_sign = "DELETE"
+    else:
+        # Search for standalone single letters (e.g. "HOW TO DO A", "SIGN B", "C")
+        match = re.search(r'\b([A-Z])\b', query)
+        if match and match.group(1) in SIGN_KNOWLEDGE:
+            found_sign = match.group(1)
+        elif current_sign and current_sign in SIGN_KNOWLEDGE:
+            found_sign = current_sign
+
+    if found_sign and found_sign in SIGN_KNOWLEDGE:
+        instructions = SIGN_KNOWLEDGE[found_sign]
+        tip_text = (
+            f"💡 **AI Coach for Sign '{found_sign}'**:\n"
+            f"• **Posture:** {instructions}\n\n"
+            f"🎯 **Troubleshooting Tips:**\n"
+            f"1. Keep your hand 1.5–2 feet away from the webcam so all 21 joints are inside the frame.\n"
+            f"2. Ensure good lighting on the front of your hand (avoid strong backlight).\n"
+            f"3. Hold your wrist straight toward the camera lens without tilting up or down."
+        )
+        return {"success": True, "sign": found_sign, "response": tip_text}
+
+    # General Troubleshooting & FAQ Matcher
+    q_lower = data.query.lower()
+    if any(w in q_lower for w in ["not working", "stuck", "recognize", "detect", "fail", "wrong"]):
+        return {
+            "success": True,
+            "response": (
+                "🤖 **AI Sign Coach Diagnostics:**\n"
+                "• **Distance:** Sit about 50–70 cm (arm's length) from the camera.\n"
+                "• **Lighting:** Dim rooms make landmarks flutter. Turn on a front room light.\n"
+                "• **Orientation:** Keep your hand upright and squarely facing the camera.\n"
+                "• **Left vs Right:** Use your right hand facing forward for highest accuracy."
+            )
+        }
+
+    if any(w in q_lower for w in ["sentence", "builder", "append", "space", "delete"]):
+        return {
+            "success": True,
+            "response": (
+                "✍️ **Sentence Builder Tips:**\n"
+                "• Toggle Sentence Builder ON by pressing **'S'** on your keyboard.\n"
+                "• **Hold any sign steady for 1.2 seconds** to append it automatically.\n"
+                "• Form the **SPACE sign** (Thumb + Index + Pinky extended) to add spaces between words.\n"
+                "• Form the **DELETE sign** (Index + Pinky extended) to backspace."
+            )
+        }
+
+    # Default fallback guide
+    return {
+        "success": True,
+        "response": (
+            "👋 **Hi, I'm your AI Sign Coach!**\n"
+            "Ask me things like:\n"
+            "• *'How do I make sign A?'*\n"
+            "• *'Why is my sign C not detecting?'*\n"
+            "• *'How does sentence builder work?'*\n"
+            "• *'Tips for camera lighting'*."
+        )
+    }
 
 
 @app.post("/predict")
