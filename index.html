@@ -245,7 +245,6 @@
             margin: 4px 0;
         }
 
-        /* LIVE CAMERA MINI PREVIEW BOX */
         .modal-camera-box {
             position: relative;
             width: 100%;
@@ -343,6 +342,12 @@
                 <b style="font-size:13px; color:#94a3b8;">Submit Feedback / Review</b><br>
                 <textarea id="reviewInput" rows="2" placeholder="Leave a review..."></textarea><br>
                 <button class="btn-green" style="margin-top:6px;" onclick="handleSubmitReview()">Submit Review</button>
+
+                <!-- MY PREVIOUS REVIEWS & DELETE LIST -->
+                <div style="margin-top:14px;">
+                    <b style="font-size:12px; color:#94a3b8;">My Submitted Reviews:</b>
+                    <div id="myReviewsList" style="margin-top:6px; font-size:12px;"></div>
+                </div>
             </div>
             <hr style="border: 0; border-top: 1px solid #262b32; margin: 16px 0;">
             <div>
@@ -389,7 +394,6 @@
         <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; font-weight:600;">Sign <span id="currentStepIdx">1</span> of 3:</div>
         <div id="targetSignBadge" class="target-badge">A</div>
 
-        <!-- LIVE WEBCAM MIRROR IN MODAL -->
         <div class="modal-camera-box">
             <video id="modalWebcam" autoplay playsinline muted></video>
         </div>
@@ -421,6 +425,7 @@
 
     const adminReplyBanner = document.getElementById('adminReplyBanner');
     const adminReplyContent = document.getElementById('adminReplyContent');
+    const myReviewsList = document.getElementById('myReviewsList');
 
     const video = document.getElementById('webcam');
     const modalVideo = document.getElementById('modalWebcam');
@@ -493,20 +498,65 @@
         }
     }
 
-    async function checkAdminReplies() {
+    async function loadMyReviews() {
         if (!activeUsername) return;
         try {
             const res = await fetch('/users/reviews/' + encodeURIComponent(activeUsername));
             const data = await res.json();
-            if (data.reviews && data.reviews.length > 0) {
-                const latestWithReply = data.reviews.find(r => r.admin_reply && r.admin_reply.trim() !== "");
-                if (latestWithReply) {
-                    adminReplyContent.innerHTML = `"${latestWithReply.admin_reply}" <span style="color:#64748b; font-size:11px;">(Regarding your review: "${latestWithReply.review}")</span>`;
-                    adminReplyBanner.style.display = 'block';
+
+            if (!data.reviews || data.reviews.length === 0) {
+                myReviewsList.innerHTML = '<span style="color:#64748b;">No reviews submitted yet.</span>';
+                adminReplyBanner.style.display = 'none';
+                return;
+            }
+
+            let html = "";
+            let latestReply = null;
+
+            data.reviews.forEach(r => {
+                if (r.admin_reply && !latestReply) {
+                    latestReply = r;
                 }
+                html += `
+                <div style="background:#0d0f12; border:1px solid #262b32; padding:8px 10px; margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="flex:1; padding-right:8px;">
+                        <span style="color:#cbd5e1;">"${r.review}"</span>
+                        ${r.admin_reply ? `<div style="color:#22c55e; font-size:11px; margin-top:2px;"><b>Admin Reply:</b> "${r.admin_reply}"</div>` : ''}
+                    </div>
+                    <button class="btn-danger" style="padding:2px 6px; font-size:10px;" onclick="deleteMyReview(${r.id})">🗑️ Delete</button>
+                </div>
+                `;
+            });
+
+            myReviewsList.innerHTML = html;
+
+            if (latestReply) {
+                adminReplyContent.innerHTML = `"${latestReply.admin_reply}" <span style="color:#64748b; font-size:11px;">(Regarding your review: "${latestReply.review}")</span>`;
+                adminReplyBanner.style.display = 'block';
+            } else {
+                adminReplyBanner.style.display = 'none';
             }
         } catch (e) {
-            console.error("Error checking replies", e);
+            console.error("Error loading reviews", e);
+        }
+    }
+
+    async function deleteMyReview(reviewId) {
+        if (confirm("Delete your review?")) {
+            try {
+                const res = await fetch('/users/delete-review', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: activeUsername, review_id: reviewId })
+                });
+                if (res.ok) {
+                    loadMyReviews();
+                } else {
+                    alert("Failed to delete review.");
+                }
+            } catch (e) {
+                alert("Network error deleting review.");
+            }
         }
     }
 
@@ -561,7 +611,7 @@
                 appSection.style.display = 'block';
                 loggedInUserSpan.innerText = data.username;
 
-                checkAdminReplies();
+                loadMyReviews();
                 startWebcam();
                 if (!processIntervalId) {
                     processIntervalId = setInterval(processFrame, 300);
@@ -579,6 +629,9 @@
     function toggleUserPanel() {
         userPanel.style.display = userPanel.style.display === 'block' ? 'none' : 'block';
         panelMsg.innerText = "";
+        if (userPanel.style.display === 'block') {
+            loadMyReviews();
+        }
     }
 
     async function handleChangePassword() {
@@ -630,6 +683,7 @@
                 panelMsg.style.color = "#22c55e";
                 panelMsg.innerText = "Feedback received. Thank you!";
                 document.getElementById('reviewInput').value = "";
+                loadMyReviews();
             } else {
                 panelMsg.style.color = "#ef4444";
                 panelMsg.innerText = "Failed to submit feedback.";

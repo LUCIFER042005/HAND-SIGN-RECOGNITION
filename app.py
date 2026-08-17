@@ -210,6 +210,11 @@ class UserReview(BaseModel):
     review: str
 
 
+class DeleteOwnReview(BaseModel):
+    username: str
+    review_id: int
+
+
 class AdminReply(BaseModel):
     review_id: int
     admin_reply: str
@@ -363,6 +368,28 @@ def get_user_reviews_and_replies(username: str):
         return {"reviews": [], "error": str(e)}
 
 
+@app.post("/users/delete-review")
+def delete_own_review(data: DeleteOwnReview):
+    """Allows a logged-in user to delete only their own review."""
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM reviews WHERE id = %s AND username = %s",
+            (data.review_id, data.username)
+        )
+        affected = cursor.rowcount
+        conn.close()
+        if affected > 0:
+            return {"success": True, "message": "Review deleted."}
+        else:
+            raise HTTPException(status_code=403, detail="Review not found or unauthorized.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
 @app.post("/admin/reply-review")
 def reply_to_review(data: AdminReply, admin: str = Depends(authenticate_admin)):
     if not MYSQL_HOST:
@@ -385,7 +412,8 @@ def reply_to_review(data: AdminReply, admin: str = Depends(authenticate_admin)):
 
 
 @app.delete("/admin/reviews/{review_id}")
-def delete_review_by_admin(review_id: int, admin: str = Depends(authenticate_admin)):
+def delete_entire_review_by_admin(review_id: int, admin: str = Depends(authenticate_admin)):
+    """Admin can delete the user review and everything completely."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -396,6 +424,25 @@ def delete_review_by_admin(review_id: int, admin: str = Depends(authenticate_adm
         conn.close()
         if affected > 0:
             return {"success": True, "message": f"Review {review_id} deleted."}
+        else:
+            raise HTTPException(status_code=404, detail="Review not found.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.delete("/admin/reviews/{review_id}/reply")
+def delete_admin_reply_only(review_id: int, admin: str = Depends(authenticate_admin)):
+    """Admin can delete only their sent reply if they made a typo, keeping the user's review intact."""
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE reviews SET admin_reply = NULL WHERE id = %s", (review_id,))
+        affected = cursor.rowcount
+        conn.close()
+        if affected > 0:
+            return {"success": True, "message": "Admin reply erased."}
         else:
             raise HTTPException(status_code=404, detail="Review not found.")
     except Exception as e:
@@ -726,8 +773,9 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             saved_reply_box = ""
             if curr_reply:
                 saved_reply_box = f"""
-                <div style="background:#0a0c0e; border-left:3px solid #22c55e; padding:8px 12px; margin-top:8px; font-size:12px; color:#4ade80;">
-                    <b>Saved Reply:</b> "{curr_reply}"
+                <div style="background:#0a0c0e; border-left:3px solid #22c55e; padding:8px 12px; margin-top:8px; font-size:12px; color:#4ade80; display:flex; justify-content:space-between; align-items:center;">
+                    <div><b>Saved Reply:</b> "{curr_reply}"</div>
+                    <button class="btn-danger" style="padding:2px 6px; font-size:10px;" onclick="deleteAdminReplyOnly({r['id']})">🗑️ Delete Reply</button>
                 </div>
                 """
 
@@ -738,13 +786,13 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         <span style="font-size:13px; color:#22c55e; font-weight:700;">@{r['username']}</span>
                         <span style="color:#64748b; font-size:12px; margin-left:8px;">{rev_date}</span>
                     </div>
-                    <button class="btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteReview({r['id']})">🗑️ Delete Review</button>
+                    <button class="btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteEntireReview({r['id']})">🗑️ Delete User Review</button>
                 </div>
                 <div style="font-size:14px; color:#cbd5e1; margin-top:8px; line-height:1.4;">"{r['review']}"</div>
                 {saved_reply_box}
 
                 <div style="margin-top:12px; padding-top:10px; border-top:1px solid #22262c;">
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:6px; font-weight:600;">{('EDIT REPLY' if curr_reply else 'ADMIN REPLY')}:</div>
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:6px; font-weight:600;">{('EDIT / SEND REPLY' if curr_reply else 'ADMIN REPLY')}:</div>
                     <div style="display:flex; gap:6px;">
                         <input type="text" id="reply-input-{r['id']}" value="{curr_reply}" placeholder="Type reply to @{r['username']}..." style="flex:1; padding:8px 12px; font-size:12px; background:#0d0f12; border:1px solid #2d333b; color:#fff; outline:none;">
                         <button class="btn-action" style="padding:8px 16px; font-size:12px;" onclick="sendAdminReply({r['id']})">Send Reply</button>
@@ -992,8 +1040,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     }}
                 }}
 
-                async function deleteReview(reviewId) {{
-                    if (confirm("Permanently delete this review?")) {{
+                async function deleteEntireReview(reviewId) {{
+                    if (confirm("Permanently delete this user review?")) {{
                         try {{
                             const res = await fetch('/admin/reviews/' + reviewId, {{ method: 'DELETE' }});
                             if (res.ok) {{
@@ -1004,6 +1052,22 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                             }}
                         }} catch (e) {{
                             alert("Network error deleting review.");
+                        }}
+                    }}
+                }}
+
+                async function deleteAdminReplyOnly(reviewId) {{
+                    if (confirm("Delete your reply for this review?")) {{
+                        try {{
+                            const res = await fetch('/admin/reviews/' + reviewId + '/reply', {{ method: 'DELETE' }});
+                            if (res.ok) {{
+                                alert("Admin reply removed.");
+                                window.location.reload();
+                            }} else {{
+                                alert("Failed to remove reply.");
+                            }}
+                        }} catch (e) {{
+                            alert("Network error removing reply.");
                         }}
                     }}
                 }}
