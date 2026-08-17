@@ -2,10 +2,8 @@ import io
 import pickle
 import hashlib
 import os
-import re
 import secrets
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
 import pymysql
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -126,7 +124,6 @@ def init_db():
         print(f"Database initialization error: {e}")
 
 
-# --- Pydantic Models ---
 class UserAuth(BaseModel):
     username: str
     password: str
@@ -142,38 +139,6 @@ class UserReview(BaseModel):
     username: str
     review: str
 
-
-class CoachQuery(BaseModel):
-    query: str
-    current_sign: Optional[str] = None
-
-
-SIGN_KNOWLEDGE = {
-    "A": "Make a closed fist facing forward with all 4 fingers folded down and thumb resting upright along the side of the index finger.",
-    "B": "Hold all 4 fingers straight up together, folding your thumb flat across your palm.",
-    "C": "Curve your fingers and thumb sideways in an open arc to form the shape of the letter 'C'.",
-    "D": "Point your index finger straight up into the air with the other fingers curled closed.",
-    "E": "Curl all four fingertips tightly down into your palm with thumb tucked underneath.",
-    "F": "Touch your index finger and thumb tip together in a circle, holding middle, ring, and pinky straight up.",
-    "G": "Point your index finger horizontally to the side with thumb held parallel.",
-    "H": "Extend both your index and middle fingers straight up together with thumb holding remaining fingers down.",
-    "I": "Make a closed fist and extend only your pinky finger straight up into the air.",
-    "J": "Hold your pinky finger straight up, ready to trace the 'J' letter curve in the air.",
-    "K": "Point index and middle fingers in an angled 'V' with thumb placed directly between them.",
-    "L": "Extend your index finger straight up and thumb outward to make a crisp 'L' shape.",
-    "N": "Make a fist facing forward with your thumb folded tightly under the front fingers.",
-    "O": "Touch all fingertips and thumb together in a circular ring 'O' shape.",
-    "P": "Hand tilted pointing index finger forward and downward horizontally.",
-    "Q": "Point both your index finger and thumb downward in a pinch grip.",
-    "R": "Cross your middle finger over your index finger like making a lucky wish.",
-    "U": "Extend your index and pinky fingers upright while holding middle and ring fingers closed down.",
-    "V": "Extend index and middle fingers straight up and spread them apart in a peace sign.",
-    "W": "Hold index, middle, and ring fingers straight up and spread apart like a 'W'.",
-    "X": "Make a fist with only the index finger raised and bent down into a small hook shape.",
-    "Y": "Make a fist and extend only your thumb and pinky finger outward (hang loose / shaka sign).",
-    "DELETE": "Raise index and pinky fingers upright with middle and ring fingers closed (horns pose) to delete.",
-    "SPACE": "Extend thumb, index, and pinky fingers outward with middle and ring folded (3-finger open pose) to insert a space."
-}
 
 model = None
 hands = None
@@ -531,120 +496,6 @@ def health_check():
     return {"status": "online", "model_loaded": model is not None}
 
 
-# --- AI SIGN COACH ENDPOINT ---
-@app.post("/ai-coach")
-def ai_coach_assist(data: CoachQuery):
-    query = data.query.strip().upper()
-    current_sign = data.current_sign.upper() if data.current_sign else None
-
-    found_sign = None
-    if "SPACE" in query:
-        found_sign = "SPACE"
-    elif "DELETE" in query or "BACKSPACE" in query:
-        found_sign = "DELETE"
-    else:
-        match = re.search(r'\b([A-Z])\b', query)
-        if match and match.group(1) in SIGN_KNOWLEDGE:
-            found_sign = match.group(1)
-        elif current_sign and current_sign in SIGN_KNOWLEDGE:
-            found_sign = current_sign
-
-    if found_sign and found_sign in SIGN_KNOWLEDGE:
-        instructions = SIGN_KNOWLEDGE[found_sign]
-        tip_text = (
-            f"💡 **AI Coach for Sign '{found_sign}'**:\n"
-            f"• **Posture:** {instructions}\n\n"
-            f"🎯 **Hand Proportion & Calibration Tips:**\n"
-            f"1. Make sure you have clicked **'⚡ Calibrate Hand'** with an open palm for your personal profile.\n"
-            f"2. Keep your hand 1.5–2 feet away from the lens.\n"
-            f"3. Hold your wrist straight toward the camera without excessive tilt."
-        )
-        return {"success": True, "sign": found_sign, "response": tip_text}
-
-    q_lower = data.query.lower()
-    if any(w in q_lower for w in ["calibrate", "scan", "hand scan", "proportion"]):
-        return {
-            "success": True,
-            "response": (
-                "✋ **Personal Hand Calibrator:**\n"
-                "• Click the green **'⚡ Calibrate Hand'** button above.\n"
-                "• Hold a flat open palm steady in front of the camera for 3 seconds.\n"
-                "• The AI measures your palm span, finger lengths, and joint scale to fit your unique hands!"
-            )
-        }
-
-    if any(w in q_lower for w in ["not working", "stuck", "recognize", "detect", "fail", "wrong"]):
-        return {
-            "success": True,
-            "response": (
-                "🤖 **AI Sign Coach Diagnostics:**\n"
-                "• **Run Calibration:** Click '⚡ Calibrate Hand' to tune the model to your hand size.\n"
-                "• **Distance:** Sit about 50–70 cm (arm's length) from the camera.\n"
-                "• **Lighting:** Ensure light is shining on your palm, avoiding strong background glare."
-            )
-        }
-
-    if any(w in q_lower for w in ["sentence", "builder", "append", "space", "delete"]):
-        return {
-            "success": True,
-            "response": (
-                "✍️ **Sentence Builder Tips:**\n"
-                "• Toggle Sentence Builder ON by pressing **'S'** on your keyboard.\n"
-                "• **Hold any sign steady for 1.2 seconds** to append it automatically.\n"
-                "• Form the **SPACE sign** (Thumb + Index + Pinky extended) to add spaces between words.\n"
-                "• Form the **DELETE sign** (Index + Pinky extended) to backspace."
-            )
-        }
-
-    return {
-        "success": True,
-        "response": (
-            "👋 **Hi, I'm your AI Sign Coach!**\n"
-            "Ask me things like:\n"
-            "• *'How do I make sign A?'*\n"
-            "• *'How does Hand Calibration work?'*\n"
-            "• *'Why is recognition failing?'*\n"
-            "• *'Tips for Sentence Builder'*"
-        )
-    }
-
-
-# --- OPEN HAND SCAN CALIBRATION ENDPOINT ---
-@app.post("/calibrate-hand")
-async def calibrate_hand_scan(file: UploadFile = File(...)):
-    contents = await file.read()
-    image = Image.open(io.BytesIO(contents)).convert("RGB")
-    frame = np.array(image)
-
-    results = hands.process(frame)
-    if not results.multi_hand_landmarks:
-        return {"success": False, "message": "No open palm detected in frame."}
-
-    lm = results.multi_hand_landmarks[0].landmark
-
-    # Compute key biometric proportions (Palm height & Finger ratios)
-    # Joint 0 = Wrist, Joint 9 = Middle MCP (Palm base height)
-    palm_height = np.sqrt((lm[9].x - lm[0].x) ** 2 + (lm[9].y - lm[0].y) ** 2)
-    # Joint 5 = Index MCP, Joint 17 = Pinky MCP (Palm width)
-    palm_width = np.sqrt((lm[17].x - lm[5].x) ** 2 + (lm[17].y - lm[5].y) ** 2)
-    # Middle finger length: Joint 9 to 12
-    middle_finger_len = np.sqrt((lm[12].x - lm[9].x) ** 2 + (lm[12].y - lm[9].y) ** 2)
-
-    if palm_height < 0.05:
-        return {"success": False, "message": "Hand too far or too small."}
-
-    scale_factor = round(float(0.20 / palm_height), 3)
-
-    return {
-        "success": True,
-        "scale_factor": scale_factor,
-        "palm_height": round(float(palm_height), 4),
-        "palm_width": round(float(palm_width), 4),
-        "finger_ratio": round(float(middle_finger_len / palm_height), 3),
-        "message": "Hand calibrated successfully!"
-    }
-
-
 @app.post("/predict")
 async def predict_sign(file: UploadFile = File(...)):
     if not model:
@@ -660,34 +511,25 @@ async def predict_sign(file: UploadFile = File(...)):
         return {
             "success": False,
             "prediction": None,
-            "confidence": 0.0,
-            "landmarks": [],
             "message": "No hand landmarks detected",
         }
 
     data_aux = []
     x_ = []
     y_ = []
-    landmarks_list = []
 
     hand_landmarks = results.multi_hand_landmarks[0]
 
-    for lm in hand_landmarks.landmark:
-        x_.append(lm.x)
-        y_.append(lm.y)
-        landmarks_list.append({"x": round(lm.x, 4), "y": round(lm.y, 4)})
+    for i in range(len(hand_landmarks.landmark)):
+        x_.append(hand_landmarks.landmark[i].x)
+        y_.append(hand_landmarks.landmark[i].y)
 
-    for lm in hand_landmarks.landmark:
-        data_aux.append(lm.x - min(x_))
-        data_aux.append(lm.y - min(y_))
+    for i in range(len(hand_landmarks.landmark)):
+        data_aux.append(hand_landmarks.landmark[i].x - min(x_))
+        data_aux.append(hand_landmarks.landmark[i].y - min(y_))
 
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
-
-    confidence = 1.0
-    if hasattr(model, "predict_proba"):
-        probs = model.predict_proba([np.asarray(data_aux)])
-        confidence = float(np.max(probs))
 
     if MYSQL_HOST:
         try:
@@ -708,8 +550,6 @@ async def predict_sign(file: UploadFile = File(...)):
     return {
         "success": True,
         "prediction": predicted_character,
-        "confidence": round(confidence * 100, 1),
-        "landmarks": landmarks_list,
         "bbox": {
             "x_min": min(x_),
             "y_min": min(y_),
