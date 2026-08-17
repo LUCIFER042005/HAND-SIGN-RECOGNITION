@@ -377,7 +377,25 @@ def reply_to_review(data: AdminReply, admin: str = Depends(authenticate_admin)):
         affected = cursor.rowcount
         conn.close()
         if affected > 0:
-            return {"success": True, "message": "Reply sent to user!"}
+            return {"success": True, "message": "Reply saved and sent to user!"}
+        else:
+            raise HTTPException(status_code=404, detail="Review not found.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.delete("/admin/reviews/{review_id}")
+def delete_review_by_admin(review_id: int, admin: str = Depends(authenticate_admin)):
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
+        affected = cursor.rowcount
+        conn.close()
+        if affected > 0:
+            return {"success": True, "message": f"Review {review_id} deleted."}
         else:
             raise HTTPException(status_code=404, detail="Review not found.")
     except Exception as e:
@@ -628,7 +646,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         cursor.execute("SELECT id, username, password, created_at FROM users ORDER BY id ASC")
         users = cursor.fetchall()
 
-        cursor.execute("SELECT id, username, review, admin_reply, created_at FROM reviews ORDER BY id DESC LIMIT 15")
+        cursor.execute("SELECT id, username, review, admin_reply, created_at FROM reviews ORDER BY id DESC LIMIT 20")
         reviews = cursor.fetchall()
 
         cursor.execute("SELECT predicted_char, count FROM prediction_analytics ORDER BY count DESC LIMIT 8")
@@ -662,7 +680,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             </tr>
             """
 
-        # --- EXPANDABLE DROP-BOX (ACCORDION) GROUPED BY SIGN ---
         grouped_samples = {}
         for s in samples:
             lbl = s['sign_label']
@@ -706,18 +723,31 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         for r in reviews:
             rev_date = convert_to_ist_str(r['created_at'])
             curr_reply = r.get('admin_reply') or ""
-            review_rows += f"""
-            <div style="background:#13161a; border:1px solid #262b32; padding:14px; margin-bottom:12px; text-align:left;">
-                <div style="font-size:12px; color:#22c55e; display:flex; justify-content:space-between;">
-                    <b>@{r['username']}</b> <span style="color:#64748b;">{rev_date}</span>
+            saved_reply_box = ""
+            if curr_reply:
+                saved_reply_box = f"""
+                <div style="background:#0a0c0e; border-left:3px solid #22c55e; padding:8px 12px; margin-top:8px; font-size:12px; color:#4ade80;">
+                    <b>Saved Reply:</b> "{curr_reply}"
                 </div>
-                <div style="font-size:13px; color:#cbd5e1; margin-top:6px; line-height:1.4;">"{r['review']}"</div>
+                """
 
-                <div style="margin-top:10px; padding-top:10px; border-top:1px solid #22262c;">
-                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;"><b>ADMIN REPLY:</b></div>
+            review_rows += f"""
+            <div style="background:#13161a; border:1px solid #262b32; padding:16px; margin-bottom:14px; text-align:left;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <span style="font-size:13px; color:#22c55e; font-weight:700;">@{r['username']}</span>
+                        <span style="color:#64748b; font-size:12px; margin-left:8px;">{rev_date}</span>
+                    </div>
+                    <button class="btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteReview({r['id']})">🗑️ Delete Review</button>
+                </div>
+                <div style="font-size:14px; color:#cbd5e1; margin-top:8px; line-height:1.4;">"{r['review']}"</div>
+                {saved_reply_box}
+
+                <div style="margin-top:12px; padding-top:10px; border-top:1px solid #22262c;">
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:6px; font-weight:600;">{('EDIT REPLY' if curr_reply else 'ADMIN REPLY')}:</div>
                     <div style="display:flex; gap:6px;">
-                        <input type="text" id="reply-input-{r['id']}" value="{curr_reply}" placeholder="Type reply to @{r['username']}..." style="flex:1; padding:6px 10px; font-size:12px; background:#0d0f12; border:1px solid #2d333b; color:#fff; outline:none;">
-                        <button class="btn-action" style="padding:6px 12px; font-size:12px;" onclick="sendAdminReply({r['id']})">Send Reply</button>
+                        <input type="text" id="reply-input-{r['id']}" value="{curr_reply}" placeholder="Type reply to @{r['username']}..." style="flex:1; padding:8px 12px; font-size:12px; background:#0d0f12; border:1px solid #2d333b; color:#fff; outline:none;">
+                        <button class="btn-action" style="padding:8px 16px; font-size:12px;" onclick="sendAdminReply({r['id']})">Send Reply</button>
                     </div>
                 </div>
             </div>
@@ -962,6 +992,22 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     }}
                 }}
 
+                async function deleteReview(reviewId) {{
+                    if (confirm("Permanently delete this review?")) {{
+                        try {{
+                            const res = await fetch('/admin/reviews/' + reviewId, {{ method: 'DELETE' }});
+                            if (res.ok) {{
+                                alert("Review deleted.");
+                                window.location.reload();
+                            }} else {{
+                                alert("Failed to delete review.");
+                            }}
+                        }} catch (e) {{
+                            alert("Network error deleting review.");
+                        }}
+                    }}
+                }}
+
                 async function sendAdminReply(reviewId) {{
                     const input = document.getElementById('reply-input-' + reviewId);
                     const replyText = input.value.trim();
@@ -976,7 +1022,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                             body: JSON.stringify({{ review_id: reviewId, admin_reply: replyText }})
                         }});
                         if (res.ok) {{
-                            alert("Reply successfully sent to user!");
+                            alert("Reply successfully saved and sent to user!");
+                            window.location.reload();
                         }} else {{
                             alert("Failed to send reply.");
                         }}
