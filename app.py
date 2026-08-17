@@ -168,7 +168,6 @@ def init_db():
                 created_at DATETIME NOT NULL
             )
         """)
-        # Safe migration if table exists without admin_reply
         try:
             cursor.execute("ALTER TABLE reviews ADD COLUMN admin_reply TEXT NULL")
         except Exception:
@@ -341,7 +340,6 @@ def submit_review(data: UserReview):
 
 @app.get("/users/reviews/{username}")
 def get_user_reviews_and_replies(username: str):
-    """Fetches a specific user's reviews and any admin replies."""
     if not MYSQL_HOST:
         return {"reviews": []}
     try:
@@ -367,7 +365,6 @@ def get_user_reviews_and_replies(username: str):
 
 @app.post("/admin/reply-review")
 def reply_to_review(data: AdminReply, admin: str = Depends(authenticate_admin)):
-    """Admin endpoint to send a reply back to a user."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -637,8 +634,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         cursor.execute("SELECT predicted_char, count FROM prediction_analytics ORDER BY count DESC LIMIT 8")
         analytics = cursor.fetchall()
 
-        cursor.execute(
-            "SELECT id, username, sign_label, landmarks, created_at FROM hand_samples ORDER BY id DESC LIMIT 30")
+        cursor.execute("SELECT id, username, sign_label, landmarks, created_at FROM hand_samples ORDER BY id DESC")
         samples = cursor.fetchall()
 
         cursor.execute("SELECT COUNT(*) as total_samples FROM hand_samples")
@@ -666,34 +662,45 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             </tr>
             """
 
-        sample_rows = ""
-        for index, s in enumerate(samples, start=1):
-            s_date = convert_to_ist_str(s['created_at'])
-            lms_raw = s['landmarks'] if isinstance(s['landmarks'], str) else json.dumps(s['landmarks'])
-            sample_rows += f"""
-            <tr>
-                <td><b>{index}</b></td>
-                <td>
-                    <canvas id="cvs-{s['id']}" width="55" height="55" style="background:#0f1115; border:1px solid #2d333b; vertical-align:middle;"></canvas>
-                    <script>drawSkeleton('cvs-{s['id']}', {lms_raw});</script>
-                </td>
-                <td><b style="color:#f8fafc;">@{s['username']}</b></td>
-                <td><span style="background:#162320; border:1px solid #22c55e; padding:3px 10px; font-weight:bold; color:#22c55e;">{s['sign_label']}</span></td>
-                <td style="color:#94a3b8; font-size:12px;">{s_date}</td>
-                <td>
-                    <button class="btn-danger" onclick="deleteSample({s['id']})">🗑️</button>
-                </td>
-            </tr>
-            """
+        # --- EXPANDABLE DROP-BOX (ACCORDION) GROUPED BY SIGN ---
+        grouped_samples = {}
+        for s in samples:
+            lbl = s['sign_label']
+            grouped_samples.setdefault(lbl, []).append(s)
 
-        analytics_badges = ""
-        for a in analytics:
-            analytics_badges += f"""
-            <div style="background:#13161a; border:1px solid #262b32; padding:8px 14px; margin:4px; display:inline-block;">
-                <span style="font-size:15px; font-weight:bold; color:#fff;">{a['predicted_char']}</span>
-                <span style="color:#22c55e; font-size:12px; margin-left:6px; font-weight:600;">{a['count']}x</span>
-            </div>
-            """
+        grouped_samples_html = ""
+        if not grouped_samples:
+            grouped_samples_html = '<div style="color:#64748b; padding:15px; font-size:13px;">No community samples recorded yet.</div>'
+        else:
+            for sign_lbl, s_list in sorted(grouped_samples.items()):
+                sample_cards = ""
+                for s in s_list:
+                    s_date = convert_to_ist_str(s['created_at'])
+                    lms_raw = s['landmarks'] if isinstance(s['landmarks'], str) else json.dumps(s['landmarks'])
+                    sample_cards += f"""
+                    <div style="background:#0d0f12; border:1px solid #262b32; padding:10px; text-align:center; min-width:130px; flex:1; max-width:160px;">
+                        <canvas id="cvs-{s['id']}" width="70" height="70" style="background:#000; border:1px solid #2d333b; display:block; margin:0 auto 6px auto;"></canvas>
+                        <script>drawSkeleton('cvs-{s['id']}', {lms_raw});</script>
+                        <div style="font-size:11px; color:#fff; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@{s['username']}</div>
+                        <div style="font-size:10px; color:#64748b; margin-top:2px;">{s_date.split(',')[0]}</div>
+                        <button class="btn-danger" style="margin-top:6px; padding:3px 8px; font-size:11px; width:100%;" onclick="deleteSample({s['id']})">🗑️ Delete</button>
+                    </div>
+                    """
+
+                grouped_samples_html += f"""
+                <details style="background:#13161a; border:1px solid #262b32; margin-bottom:10px;">
+                    <summary style="padding:14px 16px; cursor:pointer; font-weight:600; display:flex; justify-content:space-between; align-items:center; list-style:none; outline:none; user-select:none;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span style="background:#162320; border:1px solid #22c55e; padding:3px 10px; font-weight:bold; font-size:14px; color:#22c55e;">{sign_lbl}</span>
+                            <span style="color:#cbd5e1; font-size:14px;">Sign "{sign_lbl}"</span>
+                        </div>
+                        <span style="color:#94a3b8; font-size:12px; font-weight:600;">📁 {len(s_list)} sample(s) <span style="font-size:10px; margin-left:6px;">▼</span></span>
+                    </summary>
+                    <div style="padding:14px; border-top:1px solid #22262c; background:#101317; display:flex; flex-wrap:wrap; gap:10px;">
+                        {sample_cards}
+                    </div>
+                </details>
+                """
 
         review_rows = ""
         for r in reviews:
@@ -861,6 +868,12 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     text-align: left;
                     margin-bottom: 12px;
                 }}
+                summary::-webkit-details-marker {{
+                    display: none;
+                }}
+                details[open] summary {{
+                    background: #181c22;
+                }}
             </style>
             <script>
                 function drawSkeleton(canvasId, lms) {{
@@ -879,7 +892,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                             if (y < minY) minY = y; if (y > maxY) maxY = y;
                         }}
                         let w = (maxX - minX) || 1, h = (maxY - minY) || 1;
-                        let pad = 5;
+                        let pad = 6;
 
                         ctx.strokeStyle = '#22c55e';
                         ctx.fillStyle = '#ef4444';
@@ -908,7 +921,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                             let px = pad + ((p.x - minX) / w) * (cvs.width - pad*2);
                             let py = pad + ((p.y - minY) / h) * (cvs.height - pad*2);
                             ctx.beginPath();
-                            ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
+                            ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
                             ctx.fill();
                         }});
                     }}, 50);
@@ -938,7 +951,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 }}
 
                 async function deleteSample(id) {{
-                    if (confirm("Delete sample #" + id + "?")) {{
+                    if (confirm("Delete this sample?")) {{
                         const res = await fetch('/admin/samples/' + id, {{ method: 'DELETE' }});
                         if (res.ok) {{
                             alert("Sample removed.");
@@ -1031,22 +1044,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     <button class="btn-clean" onclick="cleanDatabase()">🧹 Run AI DB Janitor</button>
                 </div>
 
-                <div class="section-header">🖐️ Contributed Hand Samples</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>SR NO.</th>
-                            <th>POSE</th>
-                            <th>USER</th>
-                            <th>SIGN</th>
-                            <th>RECORDED (IST)</th>
-                            <th>DEL</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sample_rows if sample_rows else '<tr><td colspan="6" style="color:#64748b;">No community samples recorded yet.</td></tr>'}
-                    </tbody>
-                </table>
+                <div class="section-header">📂 Contributed Samples (Dropdown / Expandable)</div>
+                {grouped_samples_html}
 
                 <div class="section-header">👥 Registered Community Members</div>
                 <table>
