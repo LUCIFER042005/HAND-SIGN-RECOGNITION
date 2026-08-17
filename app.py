@@ -1,11 +1,13 @@
 import io
+import json
 import pickle
 import hashlib
 import os
+import random
 import secrets
 from datetime import datetime, timezone, timedelta
 import pymysql
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -13,6 +15,9 @@ from pydantic import BaseModel
 import mediapipe as mp
 import numpy as np
 from PIL import Image
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
 
 app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 
@@ -66,12 +71,19 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INDEX_PATH = os.path.join(BASE_DIR, "index.html")
 TUTORIAL_PATH = os.path.join(BASE_DIR, "tutorial.html")
 MODEL_PATH = os.path.join(BASE_DIR, "model.p")
+DATA_PICKLE_PATH = os.path.join(BASE_DIR, "data.pickle")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_USER = os.getenv("MYSQL_USER")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 MYSQL_DB = os.getenv("MYSQL_DB", "defaultdb")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", 15747)) if os.getenv("MYSQL_PORT") else 15747
+
+ALL_SUPPORTED_SIGNS = [
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+    "K", "L", "N", "O", "P", "Q", "R", "U", "V", "W",
+    "X", "Y", "DELETE", "SPACE"
+]
 
 
 def get_db_connection():
@@ -118,12 +130,23 @@ def init_db():
                 count INT DEFAULT 1
             )
         """)
+        # CROWDSOURCED HAND SAMPLES TABLE (<1 KB per sample)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS hand_samples (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) NOT NULL,
+                sign_label VARCHAR(20) NOT NULL,
+                landmarks JSON NOT NULL,
+                created_at DATETIME NOT NULL
+            )
+        """)
         conn.close()
-        print("Database initialized successfully!")
+        print("Database initialized successfully with hand_samples table!")
     except Exception as e:
         print(f"Database initialization error: {e}")
 
 
+# --- Pydantic Models ---
 class UserAuth(BaseModel):
     username: str
     password: str
@@ -138,6 +161,12 @@ class ChangePassword(BaseModel):
 class UserReview(BaseModel):
     username: str
     review: str
+
+
+class SignContribution(BaseModel):
+    username: str
+    sign_label: str
+    landmarks: list[float]
 
 
 model = None
@@ -298,6 +327,112 @@ def get_user_count():
         return {"total_users": 0, "error": str(e)}
 
 
+# --- CROWDSOURCING & CONTRIBUTION ENDPOINTS ---
+@app.get("/api/contribute/random-signs")
+def get_random_signs_to_contribute():
+    """Returns 3 random signs for the user to contribute."""
+    sample_signs = random.sample(ALL_SUPPORTED_SIGNS, 3)
+    return {"signs": sample_signs}
+
+
+@app.post("/api/contribute-sign")
+def submit_hand_sample(data: SignContribution):
+    """Saves a user's 21 landmark features (<1 KB) to the database."""
+    if len(data.landmarks) != 42:
+        raise HTTPException(status_code=400, detail="Invalid landmark array length. Expected 42 floats.")
+
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database connection not configured.")
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        created_at = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute(
+            """
+            INSERT INTO hand_samples (username, sign_label, landmarks, created_at) 
+            VALUES (%s, %s, %s, %s)
+            """,
+            (data.username, data.sign_label, json.dumps(data.landmarks), created_at)
+        )
+        conn.close()
+        return {"success": True, "message": f"Sample for '{data.sign_label}' recorded! Thank you."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to store sample: {str(e)}")
+
+
+def retrain_model_pipeline():
+    """Background task that merges original data.pickle with MySQL crowdsourced data, trains a new model, and hot-reloads it."""
+    global model
+    all_data = []
+    all_labels = []
+
+    # 1. Load base dataset if available
+    if os.path.exists(DATA_PICKLE_PATH):
+        try:
+            with open(DATA_PICKLE_PATH, "rb") as f:
+                base_dict = pickle.load(f)
+                all_data.extend(base_dict["data"])
+                all_labels.extend(base_dict["labels"])
+        except Exception as e:
+            print(f"Error loading base pickle: {e}")
+
+    # 2. Load crowdsourced user samples from MySQL
+    crowdsourced_count = 0
+    if MYSQL_HOST:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT sign_label, landmarks FROM hand_samples")
+            rows = cursor.fetchall()
+            conn.close()
+
+            for r in rows:
+                lms = json.loads(r["landmarks"])
+                all_data.append(lms)
+                all_labels.append(r["sign_label"])
+                crowdsourced_count += 1
+        except Exception as e:
+            print(f"Error fetching DB samples for retraining: {e}")
+
+    if not all_data:
+        return {"success": False, "message": "No training samples found in dataset or database."}
+
+    X = np.asarray(all_data)
+    y = np.asarray(all_labels)
+
+    x_train, x_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, shuffle=True, stratify=y
+    )
+
+    clf = RandomForestClassifier(n_estimators=100, random_state=42)
+    clf.fit(x_train, y_train)
+
+    y_pred = clf.predict(x_test)
+    acc = accuracy_score(y_test, y_pred)
+
+    # Save and Hot-Reload
+    with open(MODEL_PATH, "wb") as f:
+        pickle.dump({"model": clf}, f)
+
+    model = clf
+    print(f"Model retrained with {len(all_data)} samples ({crowdsourced_count} from community). Accuracy: {acc * 100:.2f}%")
+    return {
+        "success": True,
+        "total_samples": len(all_data),
+        "crowdsourced_samples": crowdsourced_count,
+        "accuracy": round(acc * 100, 2)
+    }
+
+
+@app.post("/admin/retrain")
+def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(authenticate_admin)):
+    """Admin trigger to retrain the model on all collected community data."""
+    res = retrain_model_pipeline()
+    return res
+
+
 @app.delete("/admin/users/{user_id}")
 def delete_user_by_admin(user_id: int, admin: str = Depends(authenticate_admin)):
     if not MYSQL_HOST:
@@ -333,9 +468,9 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         cursor.execute("SELECT predicted_char, count FROM prediction_analytics ORDER BY count DESC LIMIT 8")
         analytics = cursor.fetchall()
 
-        cursor.execute("SELECT SUM(count) as total_preds FROM prediction_analytics")
-        total_preds_res = cursor.fetchone()
-        total_preds = total_preds_res["total_preds"] if total_preds_res and total_preds_res["total_preds"] else 0
+        cursor.execute("SELECT COUNT(*) as total_samples FROM hand_samples")
+        samples_res = cursor.fetchone()
+        total_samples = samples_res["total_samples"] if samples_res else 0
 
         conn.close()
 
@@ -383,7 +518,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Admin Dashboard & Analytics</title>
+            <title>Admin Dashboard & Auto-Trainer</title>
             <style>
                 body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
                 .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 850px; text-align: center; }}
@@ -401,6 +536,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 .btn-toggle:hover {{ background: #4af6c6; color: #121212; }}
                 .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }}
                 .btn-del:hover {{ background: #e03e3e; }}
+                .btn-retrain {{ background: linear-gradient(135deg, #11998e, #38ef7d); color: #121212; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin-bottom: 20px; }}
+                .btn-retrain:hover {{ opacity: 0.9; }}
             </style>
             <script>
                 function togglePassword(id, pwd) {{
@@ -425,11 +562,32 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         }}
                     }}
                 }}
+
+                async function retrainModel() {{
+                    const btn = document.getElementById('retrainBtn');
+                    btn.innerText = "⏳ Retraining Model on All Data...";
+                    btn.disabled = true;
+                    try {{
+                        const res = await fetch('/admin/retrain', {{ method: 'POST' }});
+                        const data = await res.json();
+                        if (data.success) {{
+                            alert("Model successfully retrained!\\nTotal Samples: " + data.total_samples + "\\nCrowdsourced Samples: " + data.crowdsourced_samples + "\\nNew Accuracy: " + data.accuracy + "%");
+                            window.location.reload();
+                        }} else {{
+                            alert("Retraining failed: " + data.message);
+                        }}
+                    }} catch (e) {{
+                        alert("Error contacting retrain endpoint.");
+                    }} finally {{
+                        btn.innerText = "🚀 Retrain Model on Community Data";
+                        btn.disabled = false;
+                    }}
+                }}
             </script>
         </head>
         <body>
             <div class="card">
-                <h1>╔═══════════════════════════════╗<br>║   ADMIN & ANALYTICS PORTAL    ║<br>╚═══════════════════════════════╝</h1>
+                <h1>╔═══════════════════════════════╗<br>║   ADMIN & AUTO-TRAINER PORTAL ║<br>╚═══════════════════════════════╝</h1>
 
                 <div class="stats-container">
                     <div class="stat-box">
@@ -437,14 +595,16 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         <div class="stat-label">Registered Users</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-num">{total_preds}</div>
-                        <div class="stat-label">Total Predictions</div>
+                        <div class="stat-num">{total_samples}</div>
+                        <div class="stat-label">Contributed Samples</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-num">{len(reviews)}</div>
                         <div class="stat-label">Reviews Received</div>
                     </div>
                 </div>
+
+                <button id="retrainBtn" class="btn-retrain" onclick="retrainModel()">🚀 Retrain Model on Community Data</button>
 
                 <div style="background:#181818; border:1px solid #333; border-radius:8px; padding:15px; margin-bottom:20px; text-align:left;">
                     <h3 style="margin-top:0; color:#fff; font-size:14px;">🔥 POPULAR GESTURE RECOGNITIONS</h3>
@@ -511,6 +671,7 @@ async def predict_sign(file: UploadFile = File(...)):
         return {
             "success": False,
             "prediction": None,
+            "landmarks": [],
             "message": "No hand landmarks detected",
         }
 
@@ -550,6 +711,7 @@ async def predict_sign(file: UploadFile = File(...)):
     return {
         "success": True,
         "prediction": predicted_character,
+        "raw_features": data_aux,
         "bbox": {
             "x_min": min(x_),
             "y_min": min(y_),

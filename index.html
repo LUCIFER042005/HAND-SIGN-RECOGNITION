@@ -4,192 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hand Sign Recognition & Sentence Builder</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-base: #0a0e17;
-            --card-bg: rgba(21, 28, 44, 0.75);
-            --card-border: rgba(255, 255, 255, 0.08);
-            --accent: #38ef7d;
-            --accent-gradient: linear-gradient(135deg, #11998e, #38ef7d);
-            --special-accent: #f7971e;
-            --special-gradient: linear-gradient(135deg, #f7971e, #ffd200);
-            --danger: #ff4b4b;
-            --text-main: #f0f4f8;
-            --text-muted: #8a99ad;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background: var(--bg-base);
-            background-image:
-                radial-gradient(at 10% 10%, rgba(17, 153, 142, 0.15) 0px, transparent 50%),
-                radial-gradient(at 90% 90%, rgba(56, 239, 125, 0.1) 0px, transparent 50%);
-            background-attachment: fixed;
-            color: var(--text-main);
-            padding: 30px 15px;
+            font-family: Arial, sans-serif;
             text-align: center;
-            min-height: 100vh;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
         }
 
         .container {
-            max-width: 680px;
-            margin: 0 auto;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            padding: 28px;
-            border-radius: 20px;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-        }
-
-        h1 {
-            font-size: 26px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #ffffff, #a5b4fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 6px;
-        }
-
-        .user-counter {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 22px;
-        }
-        .user-counter span {
-            color: var(--accent);
-            font-weight: 700;
-        }
-
-        /* Auth Card */
-        .auth-card {
-            max-width: 380px;
-            margin: 20px auto;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--card-border);
-            padding: 25px;
-            border-radius: 16px;
-        }
-
-        input, textarea {
-            width: 90%;
-            padding: 12px 14px;
-            margin: 8px 0;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(0, 0, 0, 0.4);
-            color: var(--text-main);
-            font-family: inherit;
-            font-size: 14px;
-            transition: border-color 0.2s ease;
-        }
-
-        input:focus, textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 10px rgba(56, 239, 125, 0.2);
-        }
-
-        .auth-btn-group {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            margin-top: 15px;
-        }
-
-        /* Buttons */
-        button, .btn-link {
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            padding: 10px 18px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        button:hover, .btn-link:hover {
-            background: rgba(255, 255, 255, 0.12);
-            transform: translateY(-1px);
-        }
-
-        button.primary {
-            background: var(--accent-gradient);
-            color: #0a0e17;
-            border: none;
-            font-weight: 700;
-        }
-
-        button.primary:hover {
-            box-shadow: 0 0 18px rgba(56, 239, 125, 0.4);
-        }
-
-        button.danger {
-            background: rgba(255, 75, 75, 0.15);
-            color: #ff6b6b;
-            border-color: rgba(255, 75, 75, 0.3);
-        }
-
-        button.danger:hover {
-            background: var(--danger);
-            color: #fff;
-            box-shadow: 0 0 18px rgba(255, 75, 75, 0.4);
-        }
-
-        /* User Bar */
-        .user-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--card-border);
-            padding: 10px 16px;
+            max-width: 620px;
+            margin: auto;
+            background: #1e1e1e;
+            padding: 20px;
             border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 14px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.6);
         }
 
-        .user-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .btn-tutorial {
-            background: var(--special-gradient);
-            color: #0a0e17 !important;
-            border: none;
-            font-weight: 700;
-            padding: 6px 12px;
-            font-size: 12px;
-            border-radius: 8px;
-        }
-
-        /* Video wrapper */
         .video-wrapper {
             position: relative;
             width: 100%;
             max-width: 480px;
-            margin: 0 auto;
-            border-radius: 16px;
+            margin: auto;
+            border-radius: 8px;
             overflow: hidden;
-            background: #000;
-            border: 1px solid var(--card-border);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            border: 2px solid #333;
+            background-color: #000;
         }
 
         video {
@@ -199,95 +41,174 @@
             display: block;
         }
 
-        canvas { display: none; }
+        canvas {
+            display: none;
+        }
 
-        /* Prediction Card */
         .prediction-box {
-            margin: 16px 0;
-            font-size: 18px;
-            font-weight: 600;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 14px;
-            border-radius: 12px;
-            border: 1px solid var(--card-border);
+            margin-top: 15px;
+            font-size: 22px;
+            font-weight: bold;
         }
 
         .predicted-char {
-            color: var(--accent);
-            font-size: 28px;
-            font-weight: 700;
-            margin-left: 8px;
+            color: #4af6c6;
+            font-size: 30px;
         }
 
-        /* Sentence Box */
         .sentence-container {
-            background: rgba(0, 0, 0, 0.35);
-            border: 1px solid var(--card-border);
-            padding: 18px;
-            border-radius: 14px;
-            margin-top: 16px;
+            margin-top: 15px;
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
             text-align: left;
         }
 
-        .sentence-label {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-        }
-
         .sentence-box {
-            min-height: 50px;
-            font-size: 22px;
-            font-weight: 600;
+            min-height: 38px;
+            font-size: 20px;
             color: #fff;
             word-wrap: break-word;
-            border-bottom: 2px solid var(--accent);
-            padding: 6px 0;
-            margin-bottom: 12px;
+            border-bottom: 2px solid #4af6c6;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
         }
 
         .controls {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-            justify-content: center;
+        }
+
+        button, .btn-link {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-block;
+            transition: 0.2s ease;
+        }
+
+        button:hover, .btn-link:hover {
+            background-color: #444;
+        }
+
+        .btn-add {
+            background-color: #2e7d32;
+            border-color: #1b5e20;
+        }
+        .btn-add:hover {
+            background-color: #388e3c;
+        }
+
+        .btn-clear {
+            background-color: #c62828;
+            border-color: #b71c1c;
+        }
+        .btn-clear:hover {
+            background-color: #d32f2f;
+        }
+
+        .btn-contribute {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            color: #121212 !important;
+            font-weight: bold;
+            border: none;
+        }
+        .btn-contribute:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
         }
 
         .status-indicator {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 6px;
+            font-size: 13px;
+            color: #aaa;
+            margin-top: 5px;
         }
 
-        .shortcut-badge {
-            background: rgba(56, 239, 125, 0.12);
-            color: var(--accent);
-            padding: 2px 6px;
-            border-radius: 6px;
-            border: 1px solid rgba(56, 239, 125, 0.3);
-            font-weight: 700;
+        .auth-card {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
         }
 
-        /* Profile Modal */
+        input, textarea {
+            padding: 10px;
+            margin: 5px 0;
+            width: 80%;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #121212;
+            color: white;
+        }
+
+        .user-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #2a2a2a;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
         #userPanel {
             display: none;
-            background: rgba(16, 22, 34, 0.95);
-            border: 1px solid rgba(56, 239, 125, 0.3);
-            padding: 20px;
-            border-radius: 16px;
-            margin-bottom: 20px;
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #4af6c6;
             text-align: left;
         }
 
-        .panel-title {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--accent);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
+        /* Contributor Modal */
+        #contributeModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-card {
+            background: #1e1e1e;
+            border: 2px solid #38ef7d;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 440px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 0 25px rgba(56, 239, 125, 0.2);
+        }
+
+        .target-badge {
+            font-size: 40px;
+            font-weight: bold;
+            color: #38ef7d;
+            margin: 10px 0;
+        }
+
+        .progress-bar-bg {
+            background: #333;
+            border-radius: 10px;
+            height: 12px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+
+        .progress-bar-fill {
+            background: #38ef7d;
+            height: 100%;
+            width: 0%;
+            transition: width 0.2s ease;
         }
     </style>
 </head>
@@ -295,58 +216,54 @@
 
 <div class="container">
     <h1>Hand Sign Recognition</h1>
-    <div class="user-counter">👥 Community: <span id="totalUserCount">0</span> users registered</div>
-
-    <!-- LOGIN / REGISTER SECTION -->
-    <div id="authSection" class="auth-card">
-        <h2 id="authTitle" style="margin-bottom: 12px; font-size: 18px; color: var(--accent);">Sign In</h2>
-        <input type="text" id="username" placeholder="Username" required><br>
-        <input type="password" id="password" placeholder="Password" required><br>
-
-        <div class="auth-btn-group">
-            <button class="primary" onclick="handleLogin()">Login</button>
-            <button onclick="handleRegister()">Register</button>
-        </div>
-        <p id="authMsg" style="font-size: 12px; color: var(--danger); margin-top: 12px;"></p>
+    <div style="font-size: 12px; color: #888; margin-bottom: 15px;">
+        Registered Community: <span id="totalUserCount" style="color: #4af6c6; font-weight: bold;">0</span> Users
     </div>
 
-    <!-- MAIN APP SECTION -->
+    <!-- AUTHENTICATION FORM -->
+    <div id="authSection" class="auth-card">
+        <h3 id="authTitle">Sign In</h3>
+        <input type="text" id="username" placeholder="Username" required><br>
+        <input type="password" id="password" placeholder="Password" required><br>
+        <div style="margin-top: 10px;">
+            <button class="btn-add" onclick="handleLogin()">Login</button>
+            <button onclick="handleRegister()">Register</button>
+        </div>
+        <p id="authMsg" style="font-size: 13px; color: #ff6b6b; margin-top: 8px;"></p>
+    </div>
+
+    <!-- MAIN APP WORKSPACE -->
     <div id="appSection" style="display: none;">
         <div class="user-bar">
-            <span>Welcome, <b id="loggedInUser" style="color: var(--accent);">User</b></span>
-            <div class="user-actions">
-                <a href="/tutorial" target="_blank" class="btn-link btn-tutorial">📖 Tutorial</a>
-                <button onclick="toggleUserPanel()" style="padding: 6px 12px; font-size: 12px;">⚙️ Profile</button>
-                <button onclick="handleLogout()" style="padding: 6px 12px; font-size: 12px;">Logout</button>
+            <span>Welcome, <b id="loggedInUser" style="color: #4af6c6;">User</b></span>
+            <div>
+                <button class="btn-contribute" onclick="openContributeModal()">🤝 Help Train AI (3 Signs)</button>
+                <a href="/tutorial" target="_blank" class="btn-link" style="background:#2e7d32;">Tutorial</a>
+                <button onclick="toggleUserPanel()">Profile</button>
+                <button onclick="handleLogout()" class="btn-clear">Logout</button>
             </div>
         </div>
 
-        <!-- USER PROFILE PANEL -->
+        <!-- PROFILE DRAWER -->
         <div id="userPanel">
-            <h3 style="margin-bottom: 14px; font-size: 16px; color: var(--text-main);">⚙️ Account Settings</h3>
-
-            <div style="margin-bottom: 16px;">
-                <div class="panel-title">Change Password</div>
-                <input type="password" id="oldPassInput" placeholder="Current Password"><br>
-                <input type="password" id="newPassInput" placeholder="New Password"><br>
-                <button class="primary" onclick="handleChangePassword()" style="padding: 8px 14px; margin-top: 6px;">Update Password</button>
-            </div>
-
-            <hr style="border: none; border-top: 1px solid var(--card-border); margin: 16px 0;">
-
-            <div style="margin-bottom: 16px;">
-                <div class="panel-title">Send Feedback</div>
-                <textarea id="reviewInput" rows="3" placeholder="Write your experience..."></textarea><br>
-                <button class="primary" onclick="handleSubmitReview()" style="padding: 8px 14px; margin-top: 6px;">Submit Review</button>
-            </div>
-
-            <hr style="border: none; border-top: 1px solid var(--card-border); margin: 16px 0;">
-
+            <h4 style="margin-top:0; color:#4af6c6;">Account Settings</h4>
             <div>
-                <button class="danger" onclick="handleDeleteOwnAccount()" style="padding: 8px 14px;">Delete Account Permanently</button>
+                <b>Change Password</b><br>
+                <input type="password" id="oldPassInput" placeholder="Old Password"><br>
+                <input type="password" id="newPassInput" placeholder="New Password"><br>
+                <button class="btn-add" onclick="handleChangePassword()">Update Password</button>
             </div>
-
-            <p id="panelMsg" style="font-size: 12px; color: var(--accent); margin-top: 10px;"></p>
+            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+            <div>
+                <b>Submit Feedback / Review</b><br>
+                <textarea id="reviewInput" rows="3" placeholder="Leave a review..."></textarea><br>
+                <button class="btn-add" onclick="handleSubmitReview()">Submit Review</button>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+            <div>
+                <button class="btn-clear" onclick="handleDeleteOwnAccount()">Delete Account</button>
+            </div>
+            <p id="panelMsg" style="font-size: 12px; color: #4af6c6; margin-top: 8px;"></p>
         </div>
 
         <div class="video-wrapper">
@@ -356,25 +273,45 @@
 
         <div class="prediction-box">
             Recognized Sign: <span id="currentSign" class="predicted-char">-</span>
-            <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press <span class="shortcut-badge">S</span> to toggle.</div>
+            <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press 'S' to toggle.</div>
         </div>
 
         <div class="sentence-container">
-            <div class="sentence-label">Sentence Builder</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: #888; margin-bottom: 5px;">Sentence Output</div>
             <div id="sentenceBox" class="sentence-box"></div>
 
             <div class="controls">
-                <button class="primary" onclick="addCurrentSign()">Add Sign</button>
+                <button class="btn-add" onclick="addCurrentSign()">Add Sign</button>
                 <button onclick="addSpace()">Space [ ]</button>
                 <button onclick="backspace()">Backspace ⌫</button>
-                <button class="danger" onclick="clearSentence()">Clear</button>
+                <button class="btn-clear" onclick="clearSentence()">Clear All</button>
             </div>
         </div>
 
-        <div style="margin-top: 18px; font-size: 13px; color: var(--text-muted);">
+        <div style="margin-top: 15px; font-size: 14px; text-align: left;">
             <label style="cursor: pointer;">
-                <input type="checkbox" id="sentenceBuilderToggle"> Auto-Append when Held (<span class="shortcut-badge">S</span>)
+                <input type="checkbox" id="sentenceBuilderToggle"> Enable Auto-Append on Hold (Press <b>'S'</b>)
             </label>
+        </div>
+    </div>
+</div>
+
+<!-- CROWDSOURCING / HELP AI LEARN MODAL -->
+<div id="contributeModal">
+    <div class="modal-card">
+        <h3 style="margin-top:0; color:#38ef7d;">🤝 Train AI on Your Hand</h3>
+        <p style="font-size: 13px; color: #ccc;">Make the requested gesture and hold steady in front of the camera for 1.5 seconds:</p>
+
+        <div style="font-size:12px; color:#aaa; text-transform:uppercase;">Sign <span id="currentStepIdx">1</span> of 3:</div>
+        <div id="targetSignBadge" class="target-badge">A</div>
+
+        <div class="progress-bar-bg">
+            <div id="captureProgressFill" class="progress-bar-fill"></div>
+        </div>
+        <div id="modalStatusText" style="font-size: 13px; color: #38ef7d;">Hold steady in camera...</div>
+
+        <div style="margin-top: 15px;">
+            <button onclick="closeContributeModal()" class="btn-clear">Cancel</button>
         </div>
     </div>
 </div>
@@ -395,6 +332,13 @@
     const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
 
+    // Contribution Modal Elements
+    const contributeModal = document.getElementById('contributeModal');
+    const targetSignBadge = document.getElementById('targetSignBadge');
+    const currentStepIdx = document.getElementById('currentStepIdx');
+    const captureProgressFill = document.getElementById('captureProgressFill');
+    const modalStatusText = document.getElementById('modalStatusText');
+
     let currentPredictedSign = "";
     let lastSign = "";
     let signHoldStartTime = null;
@@ -402,7 +346,15 @@
     let processIntervalId = null;
     let activeUsername = "";
     let activePassword = "";
+    let latestRawFeatures = null;
     const HOLD_THRESHOLD_MS = 1200;
+
+    // Contribution State
+    let isContributing = false;
+    let assignedSigns = [];
+    let currentSignIndex = 0;
+    let contributionHoldStart = null;
+    const CONTRIB_HOLD_MS = 1500;
 
     async function fetchUserCount() {
         try {
@@ -420,8 +372,7 @@
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
         if (!username || !password) {
-            authMsg.style.color = "var(--danger)";
-            authMsg.innerText = "Please enter both username and password.";
+            authMsg.innerText = "Please provide username and password.";
             return;
         }
 
@@ -433,16 +384,16 @@
             });
             const data = await res.json();
             if (res.ok) {
-                authMsg.style.color = "var(--accent)";
-                authMsg.innerText = "Account created! You can now login.";
+                authMsg.style.color = "#4af6c6";
+                authMsg.innerText = "Account created! You can now log in.";
                 fetchUserCount();
             } else {
-                authMsg.style.color = "var(--danger)";
+                authMsg.style.color = "#ff6b6b";
                 authMsg.innerText = data.detail || "Registration failed.";
             }
         } catch (err) {
-            authMsg.style.color = "var(--danger)";
-            authMsg.innerText = "Network error. Please try again.";
+            authMsg.style.color = "#ff6b6b";
+            authMsg.innerText = "Network error.";
         }
     }
 
@@ -450,8 +401,7 @@
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
         if (!username || !password) {
-            authMsg.style.color = "var(--danger)";
-            authMsg.innerText = "Please enter both username and password.";
+            authMsg.innerText = "Please provide username and password.";
             return;
         }
 
@@ -470,17 +420,16 @@
                 loggedInUserSpan.innerText = data.username;
 
                 startWebcam();
-                // 250ms polling loop for responsive inference
                 if (!processIntervalId) {
-                    processIntervalId = setInterval(processFrame, 250);
+                    processIntervalId = setInterval(processFrame, 300);
                 }
             } else {
-                authMsg.style.color = "var(--danger)";
+                authMsg.style.color = "#ff6b6b";
                 authMsg.innerText = data.detail || "Login failed.";
             }
         } catch (err) {
-            authMsg.style.color = "var(--danger)";
-            authMsg.innerText = "Network error. Please try again.";
+            authMsg.style.color = "#ff6b6b";
+            authMsg.innerText = "Network error.";
         }
     }
 
@@ -493,7 +442,6 @@
         const oldPass = document.getElementById('oldPassInput').value.trim();
         const newPass = document.getElementById('newPassInput').value.trim();
         if (!oldPass || !newPass) {
-            panelMsg.style.color = "var(--danger)";
             panelMsg.innerText = "Please fill in all password fields.";
             return;
         }
@@ -506,17 +454,17 @@
             });
             const data = await res.json();
             if (res.ok) {
-                panelMsg.style.color = "var(--accent)";
-                panelMsg.innerText = "Password updated successfully!";
+                panelMsg.style.color = "#4af6c6";
+                panelMsg.innerText = "Password updated successfully.";
                 activePassword = newPass;
                 document.getElementById('oldPassInput').value = "";
                 document.getElementById('newPassInput').value = "";
             } else {
-                panelMsg.style.color = "var(--danger)";
+                panelMsg.style.color = "#ff6b6b";
                 panelMsg.innerText = data.detail || "Password update failed.";
             }
         } catch (err) {
-            panelMsg.style.color = "var(--danger)";
+            panelMsg.style.color = "#ff6b6b";
             panelMsg.innerText = "Error updating password.";
         }
     }
@@ -524,8 +472,7 @@
     async function handleSubmitReview() {
         const review = document.getElementById('reviewInput').value.trim();
         if (!review) {
-            panelMsg.style.color = "var(--danger)";
-            panelMsg.innerText = "Please write a review before submitting.";
+            panelMsg.innerText = "Please enter feedback.";
             return;
         }
 
@@ -537,15 +484,15 @@
             });
             const data = await res.json();
             if (res.ok) {
-                panelMsg.style.color = "var(--accent)";
-                panelMsg.innerText = "Thank you! Feedback received.";
+                panelMsg.style.color = "#4af6c6";
+                panelMsg.innerText = "Feedback received. Thank you!";
                 document.getElementById('reviewInput').value = "";
             } else {
-                panelMsg.style.color = "var(--danger)";
-                panelMsg.innerText = "Failed to submit review.";
+                panelMsg.style.color = "#ff6b6b";
+                panelMsg.innerText = "Failed to submit feedback.";
             }
         } catch (err) {
-            panelMsg.style.color = "var(--danger)";
+            panelMsg.style.color = "#ff6b6b";
             panelMsg.innerText = "Error submitting feedback.";
         }
     }
@@ -563,7 +510,7 @@
                     alert("Account deleted.");
                     handleLogout();
                 } else {
-                    alert(data.detail || "Could not delete account.");
+                    alert(data.detail || "Error deleting account.");
                 }
             } catch (err) {
                 alert("Network error.");
@@ -602,9 +549,92 @@
 
     function updateStatusText() {
         if (sentenceBuilderToggle.checked) {
-            statusIndicator.innerText = "Sentence Builder ACTIVE. Hold sign steady to append/act.";
+            statusIndicator.innerText = "Sentence Builder ACTIVE. Hold sign steady to append.";
         } else {
-            statusIndicator.innerText = "Sentence Builder OFF. Press 'S' to start appending.";
+            statusIndicator.innerText = "Sentence Builder OFF. Press 'S' to start.";
+        }
+    }
+
+    // --- CROWDSOURCED SIGN CONTRIBUTOR FLOW ---
+    async function openContributeModal() {
+        try {
+            const res = await fetch('/api/contribute/random-signs');
+            const data = await res.json();
+            assignedSigns = data.signs;
+            currentSignIndex = 0;
+            isContributing = true;
+            contributeModal.style.display = 'flex';
+            updateModalUI();
+        } catch (e) {
+            alert("Could not load contribution challenge.");
+        }
+    }
+
+    function closeContributeModal() {
+        isContributing = false;
+        contributeModal.style.display = 'none';
+        contributionHoldStart = null;
+        captureProgressFill.style.width = '0%';
+    }
+
+    function updateModalUI() {
+        if (currentSignIndex < assignedSigns.length) {
+            currentStepIdx.innerText = (currentSignIndex + 1);
+            targetSignBadge.innerText = assignedSigns[currentSignIndex];
+            modalStatusText.innerText = "Hold steady in camera...";
+            captureProgressFill.style.width = '0%';
+        }
+    }
+
+    function handleContributionTracking() {
+        if (!isContributing || !latestRawFeatures || currentSignIndex >= assignedSigns.length) return;
+
+        const now = Date.now();
+        if (!contributionHoldStart) {
+            contributionHoldStart = now;
+        }
+
+        const elapsed = now - contributionHoldStart;
+        const percent = Math.min(Math.round((elapsed / CONTRIB_HOLD_MS) * 100), 100);
+        captureProgressFill.style.width = percent + '%';
+
+        if (elapsed >= CONTRIB_HOLD_MS) {
+            submitCurrentContributedSign();
+            contributionHoldStart = null;
+        }
+    }
+
+    async function submitCurrentContributedSign() {
+        const sign = assignedSigns[currentSignIndex];
+        modalStatusText.innerText = `Saving sign '${sign}'...`;
+
+        try {
+            const res = await fetch('/api/contribute-sign', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    username: activeUsername,
+                    sign_label: sign,
+                    landmarks: latestRawFeatures
+                })
+            });
+
+            if (res.ok) {
+                currentSignIndex++;
+                if (currentSignIndex >= assignedSigns.length) {
+                    modalStatusText.innerText = "🎉 All 3 signs contributed! Thank you for helping the AI learn!";
+                    setTimeout(() => {
+                        closeContributeModal();
+                        alert("Thank you! Your hand samples have been stored to help the AI adapt to your hand.");
+                    }, 1200);
+                } else {
+                    updateModalUI();
+                }
+            } else {
+                modalStatusText.innerText = "Failed to save sample. Retrying...";
+            }
+        } catch (e) {
+            modalStatusText.innerText = "Network error saving sample.";
         }
     }
 
@@ -613,14 +643,11 @@
 
         isProcessing = true;
         const ctx = canvas.getContext('2d');
-
-        // Downscale to 320x240 for rapid network transport
         canvas.width = 320;
         canvas.height = 240;
 
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Compress at 0.5 quality (under 15 KB payload)
         canvas.toBlob(async (blob) => {
             if (!blob) {
                 isProcessing = false;
@@ -637,13 +664,19 @@
                 if (data.success && data.prediction) {
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
+                    latestRawFeatures = data.raw_features || null;
 
-                    if (sentenceBuilderToggle.checked) {
+                    if (isContributing) {
+                        handleContributionTracking();
+                    } else if (sentenceBuilderToggle.checked) {
                         handleAutoAppend(currentPredictedSign);
                     }
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
+                    latestRawFeatures = null;
+                    contributionHoldStart = null;
+                    if (isContributing) captureProgressFill.style.width = '0%';
                     resetHoldTimer();
                 }
             } catch (err) {
@@ -651,7 +684,7 @@
             } finally {
                 isProcessing = false;
             }
-        }, 'image/jpeg', 0.5);
+        }, 'image/jpeg', 0.6);
     }
 
     function handleAutoAppend(sign) {
@@ -676,7 +709,7 @@
     function executeSignAction(sign) {
         if (sign === "DELETE") {
             sentenceBox.innerText = sentenceBox.innerText.slice(0, -1);
-            statusIndicator.innerText = "Action: Deleted last character ⌫";
+            statusIndicator.innerText = "Action: Deleted character ⌫";
         } else if (sign === "SPACE") {
             sentenceBox.innerText += " ";
             statusIndicator.innerText = "Action: Added space [ ]";
