@@ -104,7 +104,6 @@ def get_db_connection():
 
 
 def compute_golden_centroids():
-    """Builds reference signatures for all signs from clean base dataset."""
     global GOLDEN_CENTROIDS
     if not os.path.exists(DATA_PICKLE_PATH):
         return
@@ -126,13 +125,12 @@ def compute_golden_centroids():
                 mean_vec = mean_vec / norm
             GOLDEN_CENTROIDS[lbl] = mean_vec
 
-        print(f"Self-Cleaning AI: Loaded golden reference signatures for {len(GOLDEN_CENTROIDS)} signs.")
+        print(f"Self-Cleaning AI: Loaded golden centroids for {len(GOLDEN_CENTROIDS)} signs.")
     except Exception as e:
         print(f"Error computing golden centroids: {e}")
 
 
 def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.86) -> tuple[bool, float]:
-    """Calculates cosine similarity of input landmarks vs the golden signature."""
     if sign_label not in GOLDEN_CENTROIDS:
         return True, 1.0
 
@@ -382,7 +380,6 @@ def submit_hand_sample(data: SignContribution):
     if len(data.landmarks) != 42:
         raise HTTPException(status_code=400, detail="Invalid landmark array length. Expected 42 floats.")
 
-    # Live Self-Cleaning AI Gatekeeper
     is_valid, sim_score = is_sample_clean(data.sign_label, data.landmarks)
     if not is_valid:
         raise HTTPException(
@@ -597,14 +594,14 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             user_rows += f"""
             <tr>
                 <td><b>{index}</b></td>
-                <td class="user-name">{user['username']}</td>
+                <td style="color:#fff; font-weight:600;">{user['username']}</td>
                 <td>
-                    <span id="pwd-{user['id']}" style="font-family:monospace; color:#aaa; font-size:13px;">••••••••••••</span>
-                    <button class="btn-toggle" onclick="togglePassword({user['id']}, '{raw_pwd}')">👁</button>
+                    <span id="pwd-{user['id']}" style="font-family:monospace; color:#64748b; font-size:13px;">••••••••••••</span>
+                    <button class="btn-icon" onclick="togglePassword({user['id']}, '{raw_pwd}')">👁</button>
                 </td>
-                <td style="color:#4af6c6;">{created_str}</td>
+                <td style="color:#94a3b8; font-size:12px;">{created_str}</td>
                 <td>
-                    <button class="btn-del" onclick="deleteUser({user['id']}, '{user['username']}')">Delete</button>
+                    <button class="btn-danger" onclick="deleteUser({user['id']}, '{user['username']}')">Delete</button>
                 </td>
             </tr>
             """
@@ -617,14 +614,14 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             <tr>
                 <td><b>{index}</b></td>
                 <td>
-                    <canvas id="cvs-{s['id']}" width="55" height="55" style="background:#111; border:1px solid #444; border-radius:4px;"></canvas>
+                    <canvas id="cvs-{s['id']}" width="55" height="55" style="background:#0f1115; border:1px solid #2d333b; border-radius:6px; vertical-align:middle;"></canvas>
                     <script>drawSkeleton('cvs-{s['id']}', {lms_raw});</script>
                 </td>
-                <td><b>@{s['username']}</b></td>
-                <td><span style="background:#222; border:1px solid #4af6c6; border-radius:4px; padding:3px 8px; font-weight:bold; color:#4af6c6;">{s['sign_label']}</span></td>
-                <td style="color:#aaa; font-size:11px;">{s_date}</td>
+                <td><b style="color:#f8fafc;">@{s['username']}</b></td>
+                <td><span style="background:#162320; border:1px solid #22c55e; border-radius:6px; padding:3px 10px; font-weight:bold; color:#22c55e;">{s['sign_label']}</span></td>
+                <td style="color:#94a3b8; font-size:12px;">{s_date}</td>
                 <td>
-                    <button class="btn-del" onclick="deleteSample({s['id']})">🗑️</button>
+                    <button class="btn-danger" onclick="deleteSample({s['id']})">🗑️</button>
                 </td>
             </tr>
             """
@@ -632,9 +629,9 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         analytics_badges = ""
         for a in analytics:
             analytics_badges += f"""
-            <div style="background:#222; border:1px solid #4af6c6; border-radius:8px; padding:8px 14px; margin:4px; display:inline-block;">
-                <span style="font-size:16px; font-weight:bold; color:#fff;">{a['predicted_char']}</span>
-                <span style="color:#4af6c6; font-size:12px; margin-left:6px;">{a['count']}x</span>
+            <div style="background:#13161a; border:1px solid #262b32; border-radius:8px; padding:8px 14px; margin:4px; display:inline-block;">
+                <span style="font-size:15px; font-weight:bold; color:#fff;">{a['predicted_char']}</span>
+                <span style="color:#22c55e; font-size:12px; margin-left:6px; font-weight:600;">{a['count']}x</span>
             </div>
             """
 
@@ -642,11 +639,11 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         for r in reviews:
             rev_date = convert_to_ist_str(r['created_at'])
             review_rows += f"""
-            <div style="background:#2a2a2a; border:1px solid #333; border-radius:6px; padding:10px; margin-bottom:8px; text-align:left;">
-                <div style="font-size:12px; color:#4af6c6; display:flex; justify-content:space-between;">
-                    <b>@{r['username']}</b> <span>{rev_date}</span>
+            <div style="background:#13161a; border:1px solid #262b32; border-radius:8px; padding:12px; margin-bottom:8px; text-align:left;">
+                <div style="font-size:12px; color:#22c55e; display:flex; justify-content:space-between;">
+                    <b>@{r['username']}</b> <span style="color:#64748b;">{rev_date}</span>
                 </div>
-                <div style="font-size:13px; color:#ddd; margin-top:4px;">"{r['review']}"</div>
+                <div style="font-size:13px; color:#cbd5e1; margin-top:5px; line-height:1.4;">"{r['review']}"</div>
             </div>
             """
 
@@ -656,26 +653,152 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         <head>
             <title>Admin Dashboard & Self-Cleaning AI</title>
             <style>
-                body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
-                .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 850px; text-align: center; }}
-                h1 {{ font-size: 20px; letter-spacing: 2px; margin-bottom: 10px; text-shadow: 0 0 8px rgba(74,246,198,0.4); }}
-                .stats-container {{ display: flex; gap: 15px; justify-content: center; margin-bottom: 20px; }}
-                .stat-box {{ background: #2a2a2a; border: 1px solid #333; border-radius: 8px; padding: 12px 20px; flex: 1; }}
-                .stat-num {{ font-size: 22px; font-weight: bold; color: #fff; }}
-                .stat-label {{ font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
-                th, td {{ padding: 8px; border: 1px solid #333; text-align: center; }}
-                th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 12px; text-transform: uppercase; }}
-                td {{ color: #ddd; font-size: 12px; }}
-                .user-name {{ color: #fff; font-weight: bold; }}
-                .btn-toggle {{ background: #333; border: 1px solid #4af6c6; color: #4af6c6; border-radius: 4px; padding: 2px 6px; cursor: pointer; margin-left: 6px; font-size: 11px; }}
-                .btn-toggle:hover {{ background: #4af6c6; color: #121212; }}
-                .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 11px; }}
-                .btn-del:hover {{ background: #e03e3e; }}
-                .btn-action {{ background: linear-gradient(135deg, #11998e, #38ef7d); color: #121212; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin: 4px; }}
-                .btn-action:hover {{ opacity: 0.9; }}
-                .btn-clean {{ background: #ff9800; color: #121212; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin: 4px; }}
-                .btn-clean:hover {{ opacity: 0.9; }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    background-color: #121417;
+                    color: #f8fafc;
+                    display: flex;
+                    justify-content: center;
+                    align-items: flex-start;
+                    padding: 40px 15px;
+                    min-height: 100vh;
+                    margin: 0;
+                }}
+                .card {{
+                    background: #181b20;
+                    border: 1px solid #262b32;
+                    border-radius: 14px;
+                    padding: 30px;
+                    box-shadow: 0 12px 35px rgba(0,0,0,0.45);
+                    width: 100%;
+                    max-width: 900px;
+                    text-align: center;
+                }}
+                h1 {{
+                    font-size: 22px;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 20px;
+                    color: #ffffff;
+                }}
+                .stats-container {{
+                    display: flex;
+                    gap: 15px;
+                    justify-content: center;
+                    margin-bottom: 24px;
+                }}
+                .stat-box {{
+                    background: #13161a;
+                    border: 1px solid #262b32;
+                    border-radius: 10px;
+                    padding: 16px 20px;
+                    flex: 1;
+                }}
+                .stat-num {{
+                    font-size: 26px;
+                    font-weight: 700;
+                    color: #22c55e;
+                }}
+                .stat-label {{
+                    font-size: 11px;
+                    color: #94a3b8;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    margin-top: 4px;
+                    font-weight: 600;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 12px;
+                    margin-bottom: 28px;
+                    border-radius: 8px;
+                    overflow: hidden;
+                }}
+                th, td {{
+                    padding: 10px 12px;
+                    border-bottom: 1px solid #22262c;
+                    text-align: center;
+                }}
+                th {{
+                    background-color: #13161a;
+                    color: #94a3b8;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                }}
+                td {{
+                    color: #cbd5e1;
+                    font-size: 13px;
+                }}
+                .btn-icon {{
+                    background: #1e2229;
+                    border: 1px solid #333942;
+                    color: #94a3b8;
+                    border-radius: 6px;
+                    padding: 3px 8px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    margin-left: 6px;
+                }}
+                .btn-icon:hover {{
+                    background: #282e38;
+                    color: #fff;
+                }}
+                .btn-danger {{
+                    background: #2a1618;
+                    border: 1px solid #ef4444;
+                    color: #f87171;
+                    padding: 5px 12px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: 600;
+                    font-size: 12px;
+                }}
+                .btn-danger:hover {{
+                    background: #ef4444;
+                    color: #fff;
+                }}
+                .btn-action {{
+                    background: #22c55e;
+                    color: #ffffff;
+                    border: none;
+                    padding: 10px 22px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    font-size: 14px;
+                    margin: 4px;
+                    transition: 0.2s;
+                }}
+                .btn-action:hover {{
+                    background: #16a34a;
+                }}
+                .btn-clean {{
+                    background: #1e2229;
+                    color: #f8fafc;
+                    border: 1px solid #3b424e;
+                    padding: 10px 22px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    font-size: 14px;
+                    margin: 4px;
+                    transition: 0.2s;
+                }}
+                .btn-clean:hover {{
+                    background: #262c36;
+                }}
+                .section-header {{
+                    color: #ffffff;
+                    font-size: 15px;
+                    font-weight: 600;
+                    border-top: 1px solid #262b32;
+                    padding-top: 22px;
+                    text-align: left;
+                    margin-bottom: 12px;
+                }}
             </style>
             <script>
                 function drawSkeleton(canvasId, lms) {{
@@ -696,8 +819,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         let w = (maxX - minX) || 1, h = (maxY - minY) || 1;
                         let pad = 5;
 
-                        ctx.strokeStyle = '#38ef7d';
-                        ctx.fillStyle = '#ff4d4d';
+                        ctx.strokeStyle = '#22c55e';
+                        ctx.fillStyle = '#ef4444';
                         ctx.lineWidth = 1.5;
 
                         const connections = [
@@ -733,10 +856,10 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     const el = document.getElementById('pwd-' + id);
                     if (el.innerText.includes('•')) {{
                         el.innerText = pwd;
-                        el.style.color = '#fff';
+                        el.style.color = '#f8fafc';
                     }} else {{
                         el.innerText = '••••••••••••';
-                        el.style.color = '#aaa';
+                        el.style.color = '#64748b';
                     }}
                 }}
 
@@ -753,7 +876,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 }}
 
                 async function deleteSample(id) {{
-                    if (confirm("Delete this sample?")) {{
+                    if (confirm("Delete sample #" + id + "?")) {{
                         const res = await fetch('/admin/samples/' + id, {{ method: 'DELETE' }});
                         if (res.ok) {{
                             alert("Sample removed.");
@@ -801,7 +924,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         </head>
         <body>
             <div class="card">
-                <h1>╔═══════════════════════════════╗<br>║   ADMIN & AUTO-TRAINER PORTAL ║<br>╚═══════════════════════════════╝</h1>
+                <h1>Admin Control & Auto-Trainer Portal</h1>
 
                 <div class="stats-container">
                     <div class="stat-box">
@@ -818,12 +941,12 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     </div>
                 </div>
 
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 24px;">
                     <button id="retrainBtn" class="btn-action" onclick="retrainModel()">🚀 Retrain Model on Community Data</button>
                     <button class="btn-clean" onclick="cleanDatabase()">🧹 Run AI DB Janitor</button>
                 </div>
 
-                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">🖐️ SAMPLES (PROTECTED BY GATEKEEPER AI)</h3>
+                <div class="section-header">🖐️ Contributed Hand Samples</div>
                 <table>
                     <thead>
                         <tr>
@@ -836,11 +959,11 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         </tr>
                     </thead>
                     <tbody>
-                        {sample_rows if sample_rows else '<tr><td colspan="6" style="color:#888;">No community samples recorded yet.</td></tr>'}
+                        {sample_rows if sample_rows else '<tr><td colspan="6" style="color:#64748b;">No community samples recorded yet.</td></tr>'}
                     </tbody>
                 </table>
 
-                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">👥 REGISTERED USERS</h3>
+                <div class="section-header">👥 Registered Community Members</div>
                 <table>
                     <thead>
                         <tr>
@@ -856,8 +979,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     </tbody>
                 </table>
 
-                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">💬 USER REVIEWS</h3>
-                {review_rows if review_rows else '<div style="color:#888; font-size:13px;">No reviews submitted yet.</div>'}
+                <div class="section-header">💬 User Reviews & Feedback</div>
+                {review_rows if review_rows else '<div style="color:#64748b; font-size:13px;">No reviews submitted yet.</div>'}
             </div>
         </body>
         </html>
