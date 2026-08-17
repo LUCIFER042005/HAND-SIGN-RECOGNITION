@@ -164,9 +164,16 @@ def init_db():
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(255) NOT NULL,
                 review TEXT NOT NULL,
+                admin_reply TEXT NULL,
                 created_at DATETIME NOT NULL
             )
         """)
+        # Safe migration if table exists without admin_reply
+        try:
+            cursor.execute("ALTER TABLE reviews ADD COLUMN admin_reply TEXT NULL")
+        except Exception:
+            pass
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS prediction_analytics (
                 predicted_char VARCHAR(20) PRIMARY KEY,
@@ -202,6 +209,11 @@ class ChangePassword(BaseModel):
 class UserReview(BaseModel):
     username: str
     review: str
+
+
+class AdminReply(BaseModel):
+    review_id: int
+    admin_reply: str
 
 
 class SignContribution(BaseModel):
@@ -323,6 +335,54 @@ def submit_review(data: UserReview):
         )
         conn.close()
         return {"success": True, "message": "Review submitted successfully!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.get("/users/reviews/{username}")
+def get_user_reviews_and_replies(username: str):
+    """Fetches a specific user's reviews and any admin replies."""
+    if not MYSQL_HOST:
+        return {"reviews": []}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, review, admin_reply, created_at 
+            FROM reviews 
+            WHERE username = %s 
+            ORDER BY id DESC
+            """,
+            (username,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        for r in rows:
+            r['created_at'] = convert_to_ist_str(r['created_at'])
+        return {"reviews": rows}
+    except Exception as e:
+        return {"reviews": [], "error": str(e)}
+
+
+@app.post("/admin/reply-review")
+def reply_to_review(data: AdminReply, admin: str = Depends(authenticate_admin)):
+    """Admin endpoint to send a reply back to a user."""
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE reviews SET admin_reply = %s WHERE id = %s",
+            (data.admin_reply, data.review_id)
+        )
+        affected = cursor.rowcount
+        conn.close()
+        if affected > 0:
+            return {"success": True, "message": "Reply sent to user!"}
+        else:
+            raise HTTPException(status_code=404, detail="Review not found.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
@@ -571,7 +631,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         cursor.execute("SELECT id, username, password, created_at FROM users ORDER BY id ASC")
         users = cursor.fetchall()
 
-        cursor.execute("SELECT username, review, created_at FROM reviews ORDER BY id DESC LIMIT 10")
+        cursor.execute("SELECT id, username, review, admin_reply, created_at FROM reviews ORDER BY id DESC LIMIT 15")
         reviews = cursor.fetchall()
 
         cursor.execute("SELECT predicted_char, count FROM prediction_analytics ORDER BY count DESC LIMIT 8")
@@ -614,11 +674,11 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             <tr>
                 <td><b>{index}</b></td>
                 <td>
-                    <canvas id="cvs-{s['id']}" width="55" height="55" style="background:#0f1115; border:1px solid #2d333b; border-radius:6px; vertical-align:middle;"></canvas>
+                    <canvas id="cvs-{s['id']}" width="55" height="55" style="background:#0f1115; border:1px solid #2d333b; vertical-align:middle;"></canvas>
                     <script>drawSkeleton('cvs-{s['id']}', {lms_raw});</script>
                 </td>
                 <td><b style="color:#f8fafc;">@{s['username']}</b></td>
-                <td><span style="background:#162320; border:1px solid #22c55e; border-radius:6px; padding:3px 10px; font-weight:bold; color:#22c55e;">{s['sign_label']}</span></td>
+                <td><span style="background:#162320; border:1px solid #22c55e; padding:3px 10px; font-weight:bold; color:#22c55e;">{s['sign_label']}</span></td>
                 <td style="color:#94a3b8; font-size:12px;">{s_date}</td>
                 <td>
                     <button class="btn-danger" onclick="deleteSample({s['id']})">🗑️</button>
@@ -629,7 +689,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         analytics_badges = ""
         for a in analytics:
             analytics_badges += f"""
-            <div style="background:#13161a; border:1px solid #262b32; border-radius:8px; padding:8px 14px; margin:4px; display:inline-block;">
+            <div style="background:#13161a; border:1px solid #262b32; padding:8px 14px; margin:4px; display:inline-block;">
                 <span style="font-size:15px; font-weight:bold; color:#fff;">{a['predicted_char']}</span>
                 <span style="color:#22c55e; font-size:12px; margin-left:6px; font-weight:600;">{a['count']}x</span>
             </div>
@@ -638,12 +698,21 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         review_rows = ""
         for r in reviews:
             rev_date = convert_to_ist_str(r['created_at'])
+            curr_reply = r.get('admin_reply') or ""
             review_rows += f"""
-            <div style="background:#13161a; border:1px solid #262b32; border-radius:8px; padding:12px; margin-bottom:8px; text-align:left;">
+            <div style="background:#13161a; border:1px solid #262b32; padding:14px; margin-bottom:12px; text-align:left;">
                 <div style="font-size:12px; color:#22c55e; display:flex; justify-content:space-between;">
                     <b>@{r['username']}</b> <span style="color:#64748b;">{rev_date}</span>
                 </div>
-                <div style="font-size:13px; color:#cbd5e1; margin-top:5px; line-height:1.4;">"{r['review']}"</div>
+                <div style="font-size:13px; color:#cbd5e1; margin-top:6px; line-height:1.4;">"{r['review']}"</div>
+
+                <div style="margin-top:10px; padding-top:10px; border-top:1px solid #22262c;">
+                    <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;"><b>ADMIN REPLY:</b></div>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="reply-input-{r['id']}" value="{curr_reply}" placeholder="Type reply to @{r['username']}..." style="flex:1; padding:6px 10px; font-size:12px; background:#0d0f12; border:1px solid #2d333b; color:#fff; outline:none;">
+                        <button class="btn-action" style="padding:6px 12px; font-size:12px;" onclick="sendAdminReply({r['id']})">Send Reply</button>
+                    </div>
+                </div>
             </div>
             """
 
@@ -653,6 +722,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         <head>
             <title>Admin Dashboard & Self-Cleaning AI</title>
             <style>
+                * {{ box-sizing: border-box; border-radius: 0 !important; }}
                 body {{
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                     background-color: #121417;
@@ -667,7 +737,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 .card {{
                     background: #181b20;
                     border: 1px solid #262b32;
-                    border-radius: 14px;
                     padding: 30px;
                     box-shadow: 0 12px 35px rgba(0,0,0,0.45);
                     width: 100%;
@@ -690,7 +759,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 .stat-box {{
                     background: #13161a;
                     border: 1px solid #262b32;
-                    border-radius: 10px;
                     padding: 16px 20px;
                     flex: 1;
                 }}
@@ -712,8 +780,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     border-collapse: collapse;
                     margin-top: 12px;
                     margin-bottom: 28px;
-                    border-radius: 8px;
-                    overflow: hidden;
                 }}
                 th, td {{
                     padding: 10px 12px;
@@ -736,7 +802,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     background: #1e2229;
                     border: 1px solid #333942;
                     color: #94a3b8;
-                    border-radius: 6px;
                     padding: 3px 8px;
                     cursor: pointer;
                     font-size: 12px;
@@ -751,7 +816,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     border: 1px solid #ef4444;
                     color: #f87171;
                     padding: 5px 12px;
-                    border-radius: 6px;
                     cursor: pointer;
                     font-weight: 600;
                     font-size: 12px;
@@ -765,7 +829,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     color: #ffffff;
                     border: none;
                     padding: 10px 22px;
-                    border-radius: 8px;
                     font-weight: 600;
                     cursor: pointer;
                     font-size: 14px;
@@ -780,7 +843,6 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     color: #f8fafc;
                     border: 1px solid #3b424e;
                     padding: 10px 22px;
-                    border-radius: 8px;
                     font-weight: 600;
                     cursor: pointer;
                     font-size: 14px;
@@ -887,6 +949,29 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     }}
                 }}
 
+                async function sendAdminReply(reviewId) {{
+                    const input = document.getElementById('reply-input-' + reviewId);
+                    const replyText = input.value.trim();
+                    if (!replyText) {{
+                        alert("Please type a reply message.");
+                        return;
+                    }}
+                    try {{
+                        const res = await fetch('/admin/reply-review', {{
+                            method: 'POST',
+                            headers: {{'Content-Type': 'application/json'}},
+                            body: JSON.stringify({{ review_id: reviewId, admin_reply: replyText }})
+                        }});
+                        if (res.ok) {{
+                            alert("Reply successfully sent to user!");
+                        }} else {{
+                            alert("Failed to send reply.");
+                        }}
+                    }} catch(e) {{
+                        alert("Network error sending reply.");
+                    }}
+                }}
+
                 async function cleanDatabase() {{
                     if (confirm("Run Self-Cleaning AI Janitor on all stored samples?")) {{
                         try {{
@@ -979,7 +1064,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     </tbody>
                 </table>
 
-                <div class="section-header">💬 User Reviews & Feedback</div>
+                <div class="section-header">💬 User Reviews & Admin Reply System</div>
                 {review_rows if review_rows else '<div style="color:#64748b; font-size:13px;">No reviews submitted yet.</div>'}
             </div>
         </body>

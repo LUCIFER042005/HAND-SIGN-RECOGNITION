@@ -7,6 +7,7 @@
     <style>
         * {
             box-sizing: border-box;
+            border-radius: 0 !important;
         }
 
         body {
@@ -28,7 +29,6 @@
             margin: auto;
             background: #181b20;
             padding: 28px;
-            border-radius: 14px;
             border: 1px solid #262b32;
             box-shadow: 0 12px 35px rgba(0,0,0,0.45);
         }
@@ -55,7 +55,6 @@
         .auth-card {
             background: #13161a;
             padding: 24px;
-            border-radius: 10px;
             border: 1px solid #262b32;
             margin-top: 10px;
         }
@@ -73,7 +72,6 @@
             margin: 6px 0;
             width: 100%;
             max-width: 380px;
-            border-radius: 8px;
             border: 1px solid #2d333b;
             background: #0d0f12;
             color: #ffffff;
@@ -84,7 +82,6 @@
 
         input:focus, textarea:focus {
             border-color: #22c55e;
-            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
         }
 
         button, .btn-link {
@@ -92,7 +89,6 @@
             color: #f8fafc;
             border: 1px solid #2d333b;
             padding: 9px 16px;
-            border-radius: 8px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 600;
@@ -130,18 +126,28 @@
             align-items: center;
             background: #13161a;
             padding: 12px 16px;
-            border-radius: 10px;
             border: 1px solid #262b32;
             margin-bottom: 18px;
             flex-wrap: wrap;
             gap: 10px;
         }
 
+        #adminReplyBanner {
+            display: none;
+            background: #13161a;
+            border-left: 4px solid #22c55e;
+            border-top: 1px solid #262b32;
+            border-right: 1px solid #262b32;
+            border-bottom: 1px solid #262b32;
+            padding: 14px;
+            margin-bottom: 18px;
+            text-align: left;
+        }
+
         #userPanel {
             display: none;
             background: #13161a;
             padding: 18px;
-            border-radius: 10px;
             margin-bottom: 18px;
             border: 1px solid #262b32;
             text-align: left;
@@ -150,7 +156,6 @@
         .video-wrapper {
             position: relative;
             width: 100%;
-            border-radius: 10px;
             overflow: hidden;
             border: 1px solid #262b32;
             background-color: #000;
@@ -184,7 +189,6 @@
             margin-top: 16px;
             background: #13161a;
             padding: 16px;
-            border-radius: 10px;
             border: 1px solid #262b32;
             text-align: left;
         }
@@ -227,28 +231,45 @@
         .modal-card {
             background: #181b20;
             border: 1px solid #262b32;
-            border-radius: 14px;
-            padding: 26px;
-            max-width: 460px;
+            padding: 24px;
+            max-width: 480px;
             width: 100%;
             text-align: center;
             box-shadow: 0 16px 40px rgba(0,0,0,0.6);
         }
 
         .target-badge {
-            font-size: 46px;
+            font-size: 40px;
             font-weight: 800;
             color: #22c55e;
-            margin: 8px 0;
+            margin: 4px 0;
+        }
+
+        /* LIVE CAMERA MINI PREVIEW BOX */
+        .modal-camera-box {
+            position: relative;
+            width: 100%;
+            max-width: 320px;
+            height: 210px;
+            margin: 10px auto;
+            border: 1px solid #2d333b;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .modal-camera-box video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
         }
 
         .instruction-box {
             background: #13161a;
             border-left: 3px solid #22c55e;
-            border-radius: 6px;
-            padding: 12px;
-            margin: 14px 0;
-            font-size: 13px;
+            padding: 10px 12px;
+            margin: 10px 0;
+            font-size: 12px;
             color: #cbd5e1;
             text-align: left;
             line-height: 1.4;
@@ -257,10 +278,9 @@
         .progress-bar-bg {
             background: #13161a;
             border: 1px solid #262b32;
-            border-radius: 8px;
-            height: 12px;
+            height: 10px;
             overflow: hidden;
-            margin: 14px 0;
+            margin: 10px 0;
         }
 
         .progress-bar-fill {
@@ -303,6 +323,12 @@
             </div>
         </div>
 
+        <!-- ADMIN REPLY NOTIFICATION -->
+        <div id="adminReplyBanner">
+            <div style="font-size:12px; color:#22c55e; font-weight:700; margin-bottom:4px;">📩 MESSAGE FROM ADMIN:</div>
+            <div id="adminReplyContent" style="font-size:13px; color:#f8fafc; line-height:1.4;"></div>
+        </div>
+
         <!-- PROFILE DRAWER -->
         <div id="userPanel">
             <h4 style="margin-top:0; color:#ffffff; font-size:15px;">Account Settings</h4>
@@ -314,7 +340,7 @@
             </div>
             <hr style="border: 0; border-top: 1px solid #262b32; margin: 16px 0;">
             <div>
-                <b style="font-size:13px; color:#94a3b8;">Submit Feedback</b><br>
+                <b style="font-size:13px; color:#94a3b8;">Submit Feedback / Review</b><br>
                 <textarea id="reviewInput" rows="2" placeholder="Leave a review..."></textarea><br>
                 <button class="btn-green" style="margin-top:6px;" onclick="handleSubmitReview()">Submit Review</button>
             </div>
@@ -355,13 +381,18 @@
     </div>
 </div>
 
-<!-- 3-SIGN CONTRIBUTION MODAL -->
+<!-- 3-SIGN CONTRIBUTION MODAL WITH LIVE MINI-CAMERA VIEW -->
 <div id="contributeModal">
     <div class="modal-card">
-        <h3 style="margin-top:0; color:#ffffff; font-size:18px;">🤝 Train AI on Your Hand</h3>
+        <h3 style="margin-top:0; color:#ffffff; font-size:16px;">🤝 Train AI on Your Hand</h3>
 
-        <div style="font-size:12px; color:#94a3b8; text-transform:uppercase; font-weight:600;">Sign <span id="currentStepIdx">1</span> of 3:</div>
+        <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; font-weight:600;">Sign <span id="currentStepIdx">1</span> of 3:</div>
         <div id="targetSignBadge" class="target-badge">A</div>
+
+        <!-- LIVE WEBCAM MIRROR IN MODAL -->
+        <div class="modal-camera-box">
+            <video id="modalWebcam" autoplay playsinline muted></video>
+        </div>
 
         <div class="instruction-box">
             <b style="color:#f8fafc;">How to pose:</b> <span id="signInstructionText">Make a closed fist with thumb straight up.</span>
@@ -370,9 +401,9 @@
         <div class="progress-bar-bg">
             <div id="captureProgressFill" class="progress-bar-fill"></div>
         </div>
-        <div id="modalStatusText" style="font-size: 13px; color: #eab308; min-height: 20px; font-weight:500;">Show sign to camera...</div>
+        <div id="modalStatusText" style="font-size: 12px; color: #eab308; min-height: 18px; font-weight:500;">Show sign to camera...</div>
 
-        <div style="margin-top: 18px; display: flex; gap: 8px; justify-content: center;">
+        <div style="margin-top: 14px; display: flex; gap: 8px; justify-content: center;">
             <a href="/tutorial" target="_blank" class="btn-link">📖 Tutorial</a>
             <button onclick="closeContributeModal()" class="btn-danger">Cancel</button>
         </div>
@@ -388,7 +419,11 @@
     const userPanel = document.getElementById('userPanel');
     const panelMsg = document.getElementById('panelMsg');
 
+    const adminReplyBanner = document.getElementById('adminReplyBanner');
+    const adminReplyContent = document.getElementById('adminReplyContent');
+
     const video = document.getElementById('webcam');
+    const modalVideo = document.getElementById('modalWebcam');
     const canvas = document.getElementById('canvas');
     const currentSignSpan = document.getElementById('currentSign');
     const sentenceBox = document.getElementById('sentenceBox');
@@ -429,6 +464,7 @@
         "DELETE": "Make a fist with your thumb pointing straight down (thumbs down)."
     };
 
+    let currentStream = null;
     let currentPredictedSign = "";
     let lastSign = "";
     let signHoldStartTime = null;
@@ -454,6 +490,23 @@
             }
         } catch (err) {
             console.error("Failed to fetch user count", err);
+        }
+    }
+
+    async function checkAdminReplies() {
+        if (!activeUsername) return;
+        try {
+            const res = await fetch('/users/reviews/' + encodeURIComponent(activeUsername));
+            const data = await res.json();
+            if (data.reviews && data.reviews.length > 0) {
+                const latestWithReply = data.reviews.find(r => r.admin_reply && r.admin_reply.trim() !== "");
+                if (latestWithReply) {
+                    adminReplyContent.innerHTML = `"${latestWithReply.admin_reply}" <span style="color:#64748b; font-size:11px;">(Regarding your review: "${latestWithReply.review}")</span>`;
+                    adminReplyBanner.style.display = 'block';
+                }
+            }
+        } catch (e) {
+            console.error("Error checking replies", e);
         }
     }
 
@@ -508,6 +561,7 @@
                 appSection.style.display = 'block';
                 loggedInUserSpan.innerText = data.username;
 
+                checkAdminReplies();
                 startWebcam();
                 if (!processIntervalId) {
                     processIntervalId = setInterval(processFrame, 300);
@@ -614,10 +668,11 @@
 
     async function startWebcam() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
+            currentStream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
             });
-            video.srcObject = stream;
+            video.srcObject = currentStream;
+            modalVideo.srcObject = currentStream;
         } catch (err) {
             alert("Error accessing camera: " + err.message);
         }
@@ -652,6 +707,9 @@
             currentSignIndex = 0;
             isContributing = true;
             contributeModal.style.display = 'flex';
+            if (currentStream) {
+                modalVideo.srcObject = currentStream;
+            }
             updateModalUI();
         } catch (e) {
             alert("Could not load contribution challenge.");
