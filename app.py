@@ -15,7 +15,7 @@ from pydantic import BaseModel
 import mediapipe as mp
 import numpy as np
 from PIL import Image
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, IsolationForest
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
@@ -85,6 +85,8 @@ ALL_SUPPORTED_SIGNS = [
     "X", "Y", "DELETE", "SPACE"
 ]
 
+GOLDEN_CENTROIDS = {}
+
 
 def get_db_connection():
     if not MYSQL_HOST:
@@ -99,6 +101,49 @@ def get_db_connection():
         autocommit=True,
         ssl={'ssl': {}}
     )
+
+
+def compute_golden_centroids():
+    """Builds reference signatures for all signs from clean base dataset."""
+    global GOLDEN_CENTROIDS
+    if not os.path.exists(DATA_PICKLE_PATH):
+        return
+    try:
+        with open(DATA_PICKLE_PATH, "rb") as f:
+            base_dict = pickle.load(f)
+            data = base_dict["data"]
+            labels = base_dict["labels"]
+
+        clusters = {}
+        for d, l in zip(data, labels):
+            clusters.setdefault(l, []).append(d)
+
+        for lbl, samples in clusters.items():
+            arr = np.array(samples)
+            mean_vec = np.mean(arr, axis=0)
+            norm = np.linalg.norm(mean_vec)
+            if norm > 0:
+                mean_vec = mean_vec / norm
+            GOLDEN_CENTROIDS[lbl] = mean_vec
+
+        print(f"Self-Cleaning AI: Loaded golden reference signatures for {len(GOLDEN_CENTROIDS)} signs.")
+    except Exception as e:
+        print(f"Error computing golden centroids: {e}")
+
+
+def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.86) -> tuple[bool, float]:
+    """Calculates cosine similarity of input landmarks vs the golden signature."""
+    if sign_label not in GOLDEN_CENTROIDS:
+        return True, 1.0
+
+    target_vec = GOLDEN_CENTROIDS[sign_label]
+    cand_vec = np.array(landmarks)
+    norm = np.linalg.norm(cand_vec)
+    if norm > 0:
+        cand_vec = cand_vec / norm
+
+    cos_sim = float(np.dot(target_vec, cand_vec))
+    return cos_sim >= threshold, cos_sim
 
 
 def init_db():
@@ -145,7 +190,6 @@ def init_db():
         print(f"Database initialization error: {e}")
 
 
-# --- Pydantic Models ---
 class UserAuth(BaseModel):
     username: str
     password: str
@@ -176,6 +220,7 @@ hands = None
 def load_resources():
     global model, hands
     init_db()
+    compute_golden_centroids()
 
     if os.path.exists(MODEL_PATH):
         with open(MODEL_PATH, "rb") as f:
@@ -326,7 +371,6 @@ def get_user_count():
         return {"total_users": 0, "error": str(e)}
 
 
-# --- CROWDSOURCING & CONTRIBUTION ENDPOINTS ---
 @app.get("/api/contribute/random-signs")
 def get_random_signs_to_contribute():
     sample_signs = random.sample(ALL_SUPPORTED_SIGNS, 3)
@@ -337,6 +381,14 @@ def get_random_signs_to_contribute():
 def submit_hand_sample(data: SignContribution):
     if len(data.landmarks) != 42:
         raise HTTPException(status_code=400, detail="Invalid landmark array length. Expected 42 floats.")
+
+    # 1. LIVE SELF-CLEANING AI GATEKEEPER INSPECTION
+    is_valid, sim_score = is_sample_clean(data.sign_label, data.landmarks)
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sample rejected by Self-Cleaning AI. Quality match: {sim_score * 100:.1f}% (Required: ≥86%). Please hold the exact sign."
+        )
 
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database connection not configured.")
@@ -354,7 +406,8 @@ def submit_hand_sample(data: SignContribution):
             (data.username, data.sign_label, json.dumps(data.landmarks), created_at)
         )
         conn.close()
-        return {"success": True, "message": f"Sample for '{data.sign_label}' recorded! Thank you."}
+        return {"success": True,
+                "message": f"Sample for '{data.sign_label}' verified & saved! (Match: {sim_score * 100:.1f}%)"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to store sample: {str(e)}")
 
@@ -364,6 +417,7 @@ def retrain_model_pipeline():
     all_data = []
     all_labels = []
 
+    # 1. Load base dataset
     if os.path.exists(DATA_PICKLE_PATH):
         try:
             with open(DATA_PICKLE_PATH, "rb") as f:
@@ -373,7 +427,9 @@ def retrain_model_pipeline():
         except Exception as e:
             print(f"Error loading base pickle: {e}")
 
-    crowdsourced_count = 0
+    # 2. Load and filter crowdsourced user samples from MySQL
+    crowdsourced_accepted = 0
+    crowdsourced_rejected = 0
     if MYSQL_HOST:
         try:
             conn = get_db_connection()
@@ -382,13 +438,31 @@ def retrain_model_pipeline():
             rows = cursor.fetchall()
             conn.close()
 
+            samples_by_sign = {}
             for r in rows:
+                lbl = r["sign_label"]
                 lms = json.loads(r["landmarks"])
-                all_data.append(lms)
-                all_labels.append(r["sign_label"])
-                crowdsourced_count += 1
+                samples_by_sign.setdefault(lbl, []).append(lms)
+
+            for lbl, lms_list in samples_by_sign.items():
+                if len(lms_list) >= 4:
+                    iso = IsolationForest(contamination=0.15, random_state=42)
+                    preds = iso.fit_predict(lms_list)
+                    for idx, pred in enumerate(preds):
+                        if pred == 1:
+                            all_data.append(lms_list[idx])
+                            all_labels.append(lbl)
+                            crowdsourced_accepted += 1
+                        else:
+                            crowdsourced_rejected += 1
+                else:
+                    for lms in lms_list:
+                        all_data.append(lms)
+                        all_labels.append(lbl)
+                        crowdsourced_accepted += 1
+
         except Exception as e:
-            print(f"Error fetching DB samples for retraining: {e}")
+            print(f"Error filtering DB samples: {e}")
 
     if not all_data:
         return {"success": False, "message": "No training samples found."}
@@ -410,10 +484,13 @@ def retrain_model_pipeline():
         pickle.dump({"model": clf}, f)
 
     model = clf
+    compute_golden_centroids()
+
     return {
         "success": True,
         "total_samples": len(all_data),
-        "crowdsourced_samples": crowdsourced_count,
+        "crowdsourced_accepted": crowdsourced_accepted,
+        "crowdsourced_rejected": crowdsourced_rejected,
         "accuracy": round(acc * 100, 2)
     }
 
@@ -424,9 +501,36 @@ def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(auth
     return res
 
 
+@app.post("/admin/clean-db")
+def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
+    """Self-cleaning background job: Scans all database rows and purges anomalies."""
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, sign_label, landmarks FROM hand_samples")
+        rows = cursor.fetchall()
+
+        purged_ids = []
+        for r in rows:
+            lms = json.loads(r["landmarks"])
+            is_valid, _ = is_sample_clean(r["sign_label"], lms)
+            if not is_valid:
+                purged_ids.append(r["id"])
+
+        if purged_ids:
+            format_strings = ','.join(['%s'] * len(purged_ids))
+            cursor.execute(f"DELETE FROM hand_samples WHERE id IN ({format_strings})", tuple(purged_ids))
+
+        conn.close()
+        return {"success": True, "scanned_total": len(rows), "purged_junk_count": len(purged_ids)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
 @app.delete("/admin/samples/{sample_id}")
 def delete_contributed_sample(sample_id: int, admin: str = Depends(authenticate_admin)):
-    """Allows admin to delete any low-quality or incorrect sample."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -479,7 +583,8 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         cursor.execute("SELECT predicted_char, count FROM prediction_analytics ORDER BY count DESC LIMIT 8")
         analytics = cursor.fetchall()
 
-        cursor.execute("SELECT id, username, sign_label, created_at FROM hand_samples ORDER BY id DESC LIMIT 30")
+        cursor.execute(
+            "SELECT id, username, sign_label, landmarks, created_at FROM hand_samples ORDER BY id DESC LIMIT 20")
         samples = cursor.fetchall()
 
         cursor.execute("SELECT COUNT(*) as total_samples FROM hand_samples")
@@ -510,14 +615,19 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         sample_rows = ""
         for s in samples:
             s_date = convert_to_ist_str(s['created_at'])
+            lms_raw = s['landmarks'] if isinstance(s['landmarks'], str) else json.dumps(s['landmarks'])
             sample_rows += f"""
             <tr>
                 <td><b>#{s['id']}</b></td>
-                <td><b>@{s['username']}</b></td>
-                <td><span style="background:#222; border:1px solid #4af6c6; border-radius:4px; padding:2px 8px; font-weight:bold; color:#4af6c6;">{s['sign_label']}</span></td>
-                <td style="color:#aaa; font-size:12px;">{s_date}</td>
                 <td>
-                    <button class="btn-del" onclick="deleteSample({s['id']})">🗑️ Remove</button>
+                    <canvas id="cvs-{s['id']}" width="55" height="55" style="background:#111; border:1px solid #444; border-radius:4px;"></canvas>
+                    <script>drawSkeleton('cvs-{s['id']}', {lms_raw});</script>
+                </td>
+                <td><b>@{s['username']}</b></td>
+                <td><span style="background:#222; border:1px solid #4af6c6; border-radius:4px; padding:3px 8px; font-weight:bold; color:#4af6c6;">{s['sign_label']}</span></td>
+                <td style="color:#aaa; font-size:11px;">{s_date}</td>
+                <td>
+                    <button class="btn-del" onclick="deleteSample({s['id']})">🗑️</button>
                 </td>
             </tr>
             """
@@ -547,7 +657,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Admin Dashboard & Auto-Trainer</title>
+            <title>Admin Dashboard & Self-Cleaning AI</title>
             <style>
                 body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #4af6c6; display: flex; justify-content: center; align-items: flex-start; padding: 40px 0; min-height: 100vh; margin: 0; }}
                 .card {{ background: #1e1e1e; border: 2px solid #4af6c6; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,255,200,0.1); width: 100%; max-width: 850px; text-align: center; }}
@@ -557,18 +667,71 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 .stat-num {{ font-size: 22px; font-weight: bold; color: #fff; }}
                 .stat-label {{ font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
-                th, td {{ padding: 10px; border: 1px solid #333; text-align: center; }}
-                th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 13px; text-transform: uppercase; }}
-                td {{ color: #ddd; font-size: 13px; }}
+                th, td {{ padding: 8px; border: 1px solid #333; text-align: center; }}
+                th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 12px; text-transform: uppercase; }}
+                td {{ color: #ddd; font-size: 12px; }}
                 .user-name {{ color: #fff; font-weight: bold; }}
                 .btn-toggle {{ background: #333; border: 1px solid #4af6c6; color: #4af6c6; border-radius: 4px; padding: 2px 6px; cursor: pointer; margin-left: 6px; font-size: 11px; }}
                 .btn-toggle:hover {{ background: #4af6c6; color: #121212; }}
-                .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 12px; }}
+                .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 11px; }}
                 .btn-del:hover {{ background: #e03e3e; }}
-                .btn-retrain {{ background: linear-gradient(135deg, #11998e, #38ef7d); color: #121212; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; margin-bottom: 20px; }}
-                .btn-retrain:hover {{ opacity: 0.9; transform: scale(1.02); }}
+                .btn-action {{ background: linear-gradient(135deg, #11998e, #38ef7d); color: #121212; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin: 4px; }}
+                .btn-action:hover {{ opacity: 0.9; }}
+                .btn-clean {{ background: #ff9800; color: #121212; border: none; padding: 10px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin: 4px; }}
+                .btn-clean:hover {{ opacity: 0.9; }}
             </style>
             <script>
+                function drawSkeleton(canvasId, lms) {{
+                    setTimeout(() => {{
+                        const cvs = document.getElementById(canvasId);
+                        if (!cvs || !lms || lms.length !== 42) return;
+                        const ctx = cvs.getContext('2d');
+                        ctx.clearRect(0, 0, cvs.width, cvs.height);
+
+                        let pts = [];
+                        let minX = 999, maxX = -999, minY = 999, maxY = -999;
+                        for (let i = 0; i < lms.length; i += 2) {{
+                            let x = lms[i], y = lms[i+1];
+                            pts.push({{x, y}});
+                            if (x < minX) minX = x; if (x > maxX) maxX = x;
+                            if (y < minY) minY = y; if (y > maxY) maxY = y;
+                        }}
+                        let w = (maxX - minX) || 1, h = (maxY - minY) || 1;
+                        let pad = 5;
+
+                        ctx.strokeStyle = '#38ef7d';
+                        ctx.fillStyle = '#ff4d4d';
+                        ctx.lineWidth = 1.5;
+
+                        const connections = [
+                            [0,1],[1,2],[2,3],[3,4],
+                            [0,5],[5,6],[6,7],[7,8],
+                            [5,9],[9,10],[10,11],[11,12],
+                            [9,13],[13,14],[14,15],[15,16],
+                            [13,17],[17,18],[18,19],[19,20],[0,17]
+                        ];
+
+                        connections.forEach(([i, j]) => {{
+                            let x1 = pad + ((pts[i].x - minX) / w) * (cvs.width - pad*2);
+                            let y1 = pad + ((pts[i].y - minY) / h) * (cvs.height - pad*2);
+                            let x2 = pad + ((pts[j].x - minX) / w) * (cvs.width - pad*2);
+                            let y2 = pad + ((pts[j].y - minY) / h) * (cvs.height - pad*2);
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+                        }});
+
+                        pts.forEach(p => {{
+                            let px = pad + ((p.x - minX) / w) * (cvs.width - pad*2);
+                            let py = pad + ((p.y - minY) / h) * (cvs.height - pad*2);
+                            ctx.beginPath();
+                            ctx.arc(px, py, 1.5, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }});
+                    }}, 50);
+                }}
+
                 function togglePassword(id, pwd) {{
                     const el = document.getElementById('pwd-' + id);
                     if (el.innerText.includes('•')) {{
@@ -593,10 +756,10 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 }}
 
                 async function deleteSample(id) {{
-                    if (confirm("Delete this contributed sample (#" + id + ")?")) {{
+                    if (confirm("Delete sample #" + id + "?")) {{
                         const res = await fetch('/admin/samples/' + id, {{ method: 'DELETE' }});
                         if (res.ok) {{
-                            alert("Sample removed from dataset.");
+                            alert("Sample removed.");
                             window.location.reload();
                         }} else {{
                             alert("Failed to delete sample.");
@@ -604,15 +767,28 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     }}
                 }}
 
+                async function cleanDatabase() {{
+                    if (confirm("Run Self-Cleaning AI Janitor on all stored samples?")) {{
+                        try {{
+                            const res = await fetch('/admin/clean-db', {{ method: 'POST' }});
+                            const data = await res.json();
+                            alert("Janitor complete!\\nScanned: " + data.scanned_total + " samples\\nAuto-Purged Outliers: " + data.purged_junk_count);
+                            window.location.reload();
+                        }} catch(e) {{
+                            alert("Error running DB Janitor.");
+                        }}
+                    }}
+                }}
+
                 async function retrainModel() {{
                     const btn = document.getElementById('retrainBtn');
-                    btn.innerText = "⏳ Retraining Model on All Data...";
+                    btn.innerText = "⏳ Retraining Model...";
                     btn.disabled = true;
                     try {{
                         const res = await fetch('/admin/retrain', {{ method: 'POST' }});
                         const data = await res.json();
                         if (data.success) {{
-                            alert("Model successfully retrained!\\nTotal Samples: " + data.total_samples + "\\nCrowdsourced Samples: " + data.crowdsourced_samples + "\\nNew Accuracy: " + data.accuracy + "%");
+                            alert("Model successfully upgraded!\\nTotal Training Samples: " + data.total_samples + "\\nAuto-Accepted Community Samples: " + data.crowdsourced_accepted + "\\nAuto-Discarded Outlier Junk: " + data.crowdsourced_rejected + "\\nNew Accuracy: " + data.accuracy + "%");
                             window.location.reload();
                         }} else {{
                             alert("Retraining failed: " + data.message);
@@ -645,21 +821,25 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     </div>
                 </div>
 
-                <button id="retrainBtn" class="btn-retrain" onclick="retrainModel()">🚀 Retrain Model on Community Data</button>
+                <div style="margin-bottom: 20px;">
+                    <button id="retrainBtn" class="btn-action" onclick="retrainModel()">🚀 Retrain Model on Community Data</button>
+                    <button class="btn-clean" onclick="cleanDatabase()">🧹 Run AI DB Janitor</button>
+                </div>
 
-                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">🧪 CONTRIBUTED SAMPLES (REVIEW & PURGE)</h3>
+                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">🖐️ SAMPLES (PROTECTED BY GATEKEEPER AI)</h3>
                 <table>
                     <thead>
                         <tr>
-                            <th>SAMPLE ID</th>
+                            <th>ID</th>
+                            <th>POSE</th>
                             <th>USER</th>
                             <th>SIGN</th>
                             <th>RECORDED (IST)</th>
-                            <th>ACTION</th>
+                            <th>DEL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {sample_rows if sample_rows else '<tr><td colspan="5" style="color:#888;">No community samples recorded yet.</td></tr>'}
+                        {sample_rows if sample_rows else '<tr><td colspan="6" style="color:#888;">No community samples recorded yet.</td></tr>'}
                     </tbody>
                 </table>
 
@@ -706,7 +886,7 @@ def serve_tutorial():
 
 @app.get("/health")
 def health_check():
-    return {"status": "online", "model_loaded": model is not None}
+    return {"status": "online", "model_loaded": model is not None, "golden_centroids_loaded": len(GOLDEN_CENTROIDS)}
 
 
 @app.post("/predict")
