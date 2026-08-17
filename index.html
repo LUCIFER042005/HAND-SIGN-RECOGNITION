@@ -4,34 +4,192 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hand Sign Recognition & Sentence Builder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #121212;
-            color: #ffffff;
+        :root {
+            --bg-base: #0a0e17;
+            --card-bg: rgba(21, 28, 44, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --accent: #38ef7d;
+            --accent-gradient: linear-gradient(135deg, #11998e, #38ef7d);
+            --special-accent: #f7971e;
+            --special-gradient: linear-gradient(135deg, #f7971e, #ffd200);
+            --danger: #ff4b4b;
+            --text-main: #f0f4f8;
+            --text-muted: #8a99ad;
+        }
+
+        * {
+            box-sizing: border-box;
             margin: 0;
-            padding: 20px;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg-base);
+            background-image:
+                radial-gradient(at 10% 10%, rgba(17, 153, 142, 0.15) 0px, transparent 50%),
+                radial-gradient(at 90% 90%, rgba(56, 239, 125, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            padding: 30px 15px;
+            text-align: center;
+            min-height: 100vh;
         }
 
         .container {
-            max-width: 620px;
-            margin: auto;
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+            max-width: 680px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            padding: 28px;
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
         }
 
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #a5b4fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+
+        .user-counter {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 22px;
+        }
+        .user-counter span {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        /* Auth Card */
+        .auth-card {
+            max-width: 380px;
+            margin: 20px auto;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--card-border);
+            padding: 25px;
+            border-radius: 16px;
+        }
+
+        input, textarea {
+            width: 90%;
+            padding: 12px 14px;
+            margin: 8px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.4);
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 10px rgba(56, 239, 125, 0.2);
+        }
+
+        .auth-btn-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        /* Buttons */
+        button, .btn-link {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover, .btn-link:hover {
+            background: rgba(255, 255, 255, 0.12);
+            transform: translateY(-1px);
+        }
+
+        button.primary {
+            background: var(--accent-gradient);
+            color: #0a0e17;
+            border: none;
+            font-weight: 700;
+        }
+
+        button.primary:hover {
+            box-shadow: 0 0 18px rgba(56, 239, 125, 0.4);
+        }
+
+        button.danger {
+            background: rgba(255, 75, 75, 0.15);
+            color: #ff6b6b;
+            border-color: rgba(255, 75, 75, 0.3);
+        }
+
+        button.danger:hover {
+            background: var(--danger);
+            color: #fff;
+            box-shadow: 0 0 18px rgba(255, 75, 75, 0.4);
+        }
+
+        /* User Bar */
+        .user-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--card-border);
+            padding: 10px 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .user-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-tutorial {
+            background: var(--special-gradient);
+            color: #0a0e17 !important;
+            border: none;
+            font-weight: 700;
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+
+        /* Video wrapper */
         .video-wrapper {
             position: relative;
             width: 100%;
             max-width: 480px;
-            margin: auto;
-            border-radius: 10px;
+            margin: 0 auto;
+            border-radius: 16px;
             overflow: hidden;
-            border: 2px solid #333;
-            background-color: #000;
+            background: #000;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
         }
 
         video {
@@ -41,223 +199,95 @@
             display: block;
         }
 
-        /* Transparent Skeleton & Scan Radar Canvas */
-        #overlayCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
+        canvas { display: none; }
 
-        #hiddenCaptureCanvas {
-            display: none;
-        }
-
+        /* Prediction Card */
         .prediction-box {
-            margin-top: 15px;
-            font-size: 22px;
-            font-weight: bold;
+            margin: 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
         }
 
         .predicted-char {
-            color: #4af6c6;
-            font-size: 30px;
+            color: var(--accent);
+            font-size: 28px;
+            font-weight: 700;
+            margin-left: 8px;
         }
 
-        .confidence-badge {
-            font-size: 13px;
-            color: #888;
-            margin-left: 6px;
-            font-weight: normal;
-        }
-
+        /* Sentence Box */
         .sentence-container {
-            margin-top: 15px;
-            background: #2a2a2a;
-            padding: 15px;
-            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--card-border);
+            padding: 18px;
+            border-radius: 14px;
+            margin-top: 16px;
             text-align: left;
         }
 
+        .sentence-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
         .sentence-box {
-            min-height: 38px;
-            font-size: 20px;
+            min-height: 50px;
+            font-size: 22px;
+            font-weight: 600;
             color: #fff;
             word-wrap: break-word;
-            border-bottom: 2px solid #4af6c6;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
+            border-bottom: 2px solid var(--accent);
+            padding: 6px 0;
+            margin-bottom: 12px;
         }
 
         .controls {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-        }
-
-        button, .btn-link {
-            background-color: #333;
-            color: white;
-            border: 1px solid #555;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            text-decoration: none;
-            display: inline-block;
-            transition: 0.2s ease;
-        }
-
-        button:hover, .btn-link:hover {
-            background-color: #444;
-        }
-
-        .btn-add {
-            background-color: #2e7d32;
-            border-color: #1b5e20;
-        }
-        .btn-add:hover {
-            background-color: #388e3c;
-        }
-
-        .btn-clear {
-            background-color: #c62828;
-            border-color: #b71c1c;
-        }
-        .btn-clear:hover {
-            background-color: #d32f2f;
-        }
-
-        .btn-calibrate {
-            background: linear-gradient(135deg, #11998e, #38ef7d);
-            color: #121212 !important;
-            font-weight: bold;
-            border: none;
-        }
-        .btn-calibrate:hover {
-            opacity: 0.9;
-            transform: scale(1.02);
+            justify-content: center;
         }
 
         .status-indicator {
-            font-size: 13px;
-            color: #aaa;
-            margin-top: 5px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
         }
 
-        .calibration-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-            background: rgba(56, 239, 125, 0.15);
-            color: #38ef7d;
+        .shortcut-badge {
+            background: rgba(56, 239, 125, 0.12);
+            color: var(--accent);
+            padding: 2px 6px;
+            border-radius: 6px;
             border: 1px solid rgba(56, 239, 125, 0.3);
-            margin-left: 6px;
+            font-weight: 700;
         }
 
-        .auth-card {
-            background: #2a2a2a;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        input, textarea {
-            padding: 10px;
-            margin: 5px 0;
-            width: 80%;
-            border-radius: 4px;
-            border: 1px solid #555;
-            background: #121212;
-            color: white;
-        }
-
-        .user-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #2a2a2a;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-
+        /* Profile Modal */
         #userPanel {
             display: none;
-            background: #222;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            border: 1px solid #4af6c6;
+            background: rgba(16, 22, 34, 0.95);
+            border: 1px solid rgba(56, 239, 125, 0.3);
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 20px;
             text-align: left;
         }
 
-        /* AI Sign Coach Box */
-        .coach-container {
-            margin-top: 18px;
-            background: #181818;
-            border: 1px solid #333;
-            border-radius: 10px;
-            padding: 15px;
-            text-align: left;
-        }
-
-        .coach-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #333;
-            padding-bottom: 8px;
-            margin-bottom: 10px;
-        }
-
-        .coach-output {
-            background: #101010;
-            border: 1px solid #282828;
-            border-radius: 6px;
-            padding: 12px;
+        .panel-title {
             font-size: 13px;
-            color: #ddd;
-            line-height: 1.5;
-            min-height: 60px;
-            white-space: pre-wrap;
-            margin-bottom: 10px;
-        }
-
-        .coach-pills {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
-        }
-
-        .pill {
-            background: #262626;
-            color: #4af6c6;
-            border: 1px solid #444;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            cursor: pointer;
-        }
-        .pill:hover {
-            background: #333;
-            border-color: #4af6c6;
-        }
-
-        .coach-input-group {
-            display: flex;
-            gap: 8px;
-        }
-
-        .coach-input-group input {
-            width: 100%;
-            margin: 0;
-            padding: 8px 12px;
-            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
         }
     </style>
 </head>
@@ -265,107 +295,86 @@
 
 <div class="container">
     <h1>Hand Sign Recognition</h1>
-    <div style="font-size: 12px; color: #888; margin-bottom: 15px;">
-        Registered Community: <span id="totalUserCount" style="color: #4af6c6; font-weight: bold;">0</span> Users
-    </div>
+    <div class="user-counter">👥 Community: <span id="totalUserCount">0</span> users registered</div>
 
-    <!-- AUTHENTICATION FORM -->
+    <!-- LOGIN / REGISTER SECTION -->
     <div id="authSection" class="auth-card">
-        <h3 id="authTitle">Sign In</h3>
+        <h2 id="authTitle" style="margin-bottom: 12px; font-size: 18px; color: var(--accent);">Sign In</h2>
         <input type="text" id="username" placeholder="Username" required><br>
         <input type="password" id="password" placeholder="Password" required><br>
-        <div style="margin-top: 10px;">
-            <button class="btn-add" onclick="handleLogin()">Login</button>
+
+        <div class="auth-btn-group">
+            <button class="primary" onclick="handleLogin()">Login</button>
             <button onclick="handleRegister()">Register</button>
         </div>
-        <p id="authMsg" style="font-size: 13px; color: #ff6b6b; margin-top: 8px;"></p>
+        <p id="authMsg" style="font-size: 12px; color: var(--danger); margin-top: 12px;"></p>
     </div>
 
-    <!-- MAIN APP WORKSPACE -->
+    <!-- MAIN APP SECTION -->
     <div id="appSection" style="display: none;">
         <div class="user-bar">
-            <span>Welcome, <b id="loggedInUser" style="color: #4af6c6;">User</b> <span id="calibStatus" class="calibration-badge">Standard Profile</span></span>
-            <div>
-                <button class="btn-calibrate" onclick="startHandCalibration()">⚡ Calibrate Hand</button>
-                <a href="/tutorial" target="_blank" class="btn-link" style="background:#2e7d32;">Tutorial</a>
-                <button onclick="toggleUserPanel()">Profile</button>
-                <button onclick="handleLogout()" class="btn-clear">Logout</button>
+            <span>Welcome, <b id="loggedInUser" style="color: var(--accent);">User</b></span>
+            <div class="user-actions">
+                <a href="/tutorial" target="_blank" class="btn-link btn-tutorial">📖 Tutorial</a>
+                <button onclick="toggleUserPanel()" style="padding: 6px 12px; font-size: 12px;">⚙️ Profile</button>
+                <button onclick="handleLogout()" style="padding: 6px 12px; font-size: 12px;">Logout</button>
             </div>
         </div>
 
-        <!-- PROFILE DRAWER -->
+        <!-- USER PROFILE PANEL -->
         <div id="userPanel">
-            <h4 style="margin-top:0; color:#4af6c6;">Account Settings</h4>
-            <div>
-                <b>Change Password</b><br>
-                <input type="password" id="oldPassInput" placeholder="Old Password"><br>
+            <h3 style="margin-bottom: 14px; font-size: 16px; color: var(--text-main);">⚙️ Account Settings</h3>
+
+            <div style="margin-bottom: 16px;">
+                <div class="panel-title">Change Password</div>
+                <input type="password" id="oldPassInput" placeholder="Current Password"><br>
                 <input type="password" id="newPassInput" placeholder="New Password"><br>
-                <button class="btn-add" onclick="handleChangePassword()">Update Password</button>
+                <button class="primary" onclick="handleChangePassword()" style="padding: 8px 14px; margin-top: 6px;">Update Password</button>
             </div>
-            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+
+            <hr style="border: none; border-top: 1px solid var(--card-border); margin: 16px 0;">
+
+            <div style="margin-bottom: 16px;">
+                <div class="panel-title">Send Feedback</div>
+                <textarea id="reviewInput" rows="3" placeholder="Write your experience..."></textarea><br>
+                <button class="primary" onclick="handleSubmitReview()" style="padding: 8px 14px; margin-top: 6px;">Submit Review</button>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid var(--card-border); margin: 16px 0;">
+
             <div>
-                <b>Submit Feedback / Review</b><br>
-                <textarea id="reviewInput" rows="3" placeholder="Leave a review..."></textarea><br>
-                <button class="btn-add" onclick="handleSubmitReview()">Submit Review</button>
+                <button class="danger" onclick="handleDeleteOwnAccount()" style="padding: 8px 14px;">Delete Account Permanently</button>
             </div>
-            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
-            <div>
-                <button class="btn-clear" onclick="handleDeleteOwnAccount()">Delete Account</button>
-            </div>
-            <p id="panelMsg" style="font-size: 12px; color: #4af6c6; margin-top: 8px;"></p>
+
+            <p id="panelMsg" style="font-size: 12px; color: var(--accent); margin-top: 10px;"></p>
         </div>
 
-        <!-- CAMERA WITH TRANSPARENT SKELETON CANVAS OVERLAY -->
         <div class="video-wrapper">
             <video id="webcam" autoplay playsinline></video>
-            <canvas id="overlayCanvas"></canvas>
         </div>
-        <canvas id="hiddenCaptureCanvas"></canvas>
+        <canvas id="canvas"></canvas>
 
         <div class="prediction-box">
             Recognized Sign: <span id="currentSign" class="predicted-char">-</span>
-            <span id="confidenceSpan" class="confidence-badge"></span>
-            <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press 'S' to toggle.</div>
+            <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press <span class="shortcut-badge">S</span> to toggle.</div>
         </div>
 
         <div class="sentence-container">
-            <div style="font-size: 12px; text-transform: uppercase; color: #888; margin-bottom: 5px;">Sentence Output</div>
+            <div class="sentence-label">Sentence Builder</div>
             <div id="sentenceBox" class="sentence-box"></div>
 
             <div class="controls">
-                <button class="btn-add" onclick="addCurrentSign()">Add Sign</button>
+                <button class="primary" onclick="addCurrentSign()">Add Sign</button>
                 <button onclick="addSpace()">Space [ ]</button>
                 <button onclick="backspace()">Backspace ⌫</button>
-                <button class="btn-clear" onclick="clearSentence()">Clear All</button>
+                <button class="danger" onclick="clearSentence()">Clear</button>
             </div>
         </div>
 
-        <div style="margin-top: 15px; font-size: 14px; text-align: left;">
+        <div style="margin-top: 18px; font-size: 13px; color: var(--text-muted);">
             <label style="cursor: pointer;">
-                <input type="checkbox" id="sentenceBuilderToggle"> Enable Auto-Append on Hold (Press <b>'S'</b>)
+                <input type="checkbox" id="sentenceBuilderToggle"> Auto-Append when Held (<span class="shortcut-badge">S</span>)
             </label>
-        </div>
-
-        <!-- AI SIGN COACH ASSISTANT CHATBOT -->
-        <div class="coach-container">
-            <div class="coach-header">
-                <span style="font-weight: bold; color: #4af6c6;">🤖 AI Sign Coach</span>
-                <span style="font-size: 11px; color: #777;">Interactive Troubleshooting & Tips</span>
-            </div>
-
-            <div class="coach-pills">
-                <span class="pill" onclick="askCoach('How to do sign ' + (currentPredictedSign || 'A'))">❓ Help With Sign <span id="coachSignBadge">A</span></span>
-                <span class="pill" onclick="askCoach('How does Hand Calibration work?')">✋ Hand Calibration</span>
-                <span class="pill" onclick="askCoach('Why is recognition not working?')">⚠️ Detection Tips</span>
-                <span class="pill" onclick="askCoach('How does sentence builder work?')">✍️ Sentence Builder</span>
-            </div>
-
-            <div id="coachOutput" class="coach-output">👋 Hi! I'm your AI Sign Coach. Click '⚡ Calibrate Hand' to calibrate your unique hand proportions, or ask any question below!</div>
-
-            <div class="coach-input-group">
-                <input type="text" id="coachInput" placeholder="Ask AI Coach (e.g., 'How to do sign C?', 'Why is recognition failing?')..." onkeypress="if(event.key==='Enter') sendCustomCoachQuery()">
-                <button class="btn-calibrate" onclick="sendCustomCoachQuery()">Ask</button>
-            </div>
         </div>
     </div>
 </div>
@@ -380,18 +389,11 @@
     const panelMsg = document.getElementById('panelMsg');
 
     const video = document.getElementById('webcam');
-    const overlayCanvas = document.getElementById('overlayCanvas');
-    const hiddenCaptureCanvas = document.getElementById('hiddenCaptureCanvas');
+    const canvas = document.getElementById('canvas');
     const currentSignSpan = document.getElementById('currentSign');
-    const confidenceSpan = document.getElementById('confidenceSpan');
     const sentenceBox = document.getElementById('sentenceBox');
     const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
-    const calibStatus = document.getElementById('calibStatus');
-
-    const coachOutput = document.getElementById('coachOutput');
-    const coachInput = document.getElementById('coachInput');
-    const coachSignBadge = document.getElementById('coachSignBadge');
 
     let currentPredictedSign = "";
     let lastSign = "";
@@ -401,11 +403,6 @@
     let activeUsername = "";
     let activePassword = "";
     const HOLD_THRESHOLD_MS = 1200;
-
-    // Calibration State
-    let isCalibrating = false;
-    let calibrationCountdown = 3;
-    let personalScaleOffset = 1.0;
 
     async function fetchUserCount() {
         try {
@@ -423,7 +420,8 @@
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
         if (!username || !password) {
-            authMsg.innerText = "Please provide username and password.";
+            authMsg.style.color = "var(--danger)";
+            authMsg.innerText = "Please enter both username and password.";
             return;
         }
 
@@ -435,16 +433,16 @@
             });
             const data = await res.json();
             if (res.ok) {
-                authMsg.style.color = "#4af6c6";
-                authMsg.innerText = "Account created! You can now log in.";
+                authMsg.style.color = "var(--accent)";
+                authMsg.innerText = "Account created! You can now login.";
                 fetchUserCount();
             } else {
-                authMsg.style.color = "#ff6b6b";
+                authMsg.style.color = "var(--danger)";
                 authMsg.innerText = data.detail || "Registration failed.";
             }
         } catch (err) {
-            authMsg.style.color = "#ff6b6b";
-            authMsg.innerText = "Network error.";
+            authMsg.style.color = "var(--danger)";
+            authMsg.innerText = "Network error. Please try again.";
         }
     }
 
@@ -452,7 +450,8 @@
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
         if (!username || !password) {
-            authMsg.innerText = "Please provide username and password.";
+            authMsg.style.color = "var(--danger)";
+            authMsg.innerText = "Please enter both username and password.";
             return;
         }
 
@@ -471,16 +470,17 @@
                 loggedInUserSpan.innerText = data.username;
 
                 startWebcam();
+                // 250ms polling loop for responsive inference
                 if (!processIntervalId) {
-                    processIntervalId = setInterval(processFrame, 300);
+                    processIntervalId = setInterval(processFrame, 250);
                 }
             } else {
-                authMsg.style.color = "#ff6b6b";
+                authMsg.style.color = "var(--danger)";
                 authMsg.innerText = data.detail || "Login failed.";
             }
         } catch (err) {
-            authMsg.style.color = "#ff6b6b";
-            authMsg.innerText = "Network error.";
+            authMsg.style.color = "var(--danger)";
+            authMsg.innerText = "Network error. Please try again.";
         }
     }
 
@@ -493,6 +493,7 @@
         const oldPass = document.getElementById('oldPassInput').value.trim();
         const newPass = document.getElementById('newPassInput').value.trim();
         if (!oldPass || !newPass) {
+            panelMsg.style.color = "var(--danger)";
             panelMsg.innerText = "Please fill in all password fields.";
             return;
         }
@@ -505,17 +506,17 @@
             });
             const data = await res.json();
             if (res.ok) {
-                panelMsg.style.color = "#4af6c6";
-                panelMsg.innerText = "Password updated successfully.";
+                panelMsg.style.color = "var(--accent)";
+                panelMsg.innerText = "Password updated successfully!";
                 activePassword = newPass;
                 document.getElementById('oldPassInput').value = "";
                 document.getElementById('newPassInput').value = "";
             } else {
-                panelMsg.style.color = "#ff6b6b";
+                panelMsg.style.color = "var(--danger)";
                 panelMsg.innerText = data.detail || "Password update failed.";
             }
         } catch (err) {
-            panelMsg.style.color = "#ff6b6b";
+            panelMsg.style.color = "var(--danger)";
             panelMsg.innerText = "Error updating password.";
         }
     }
@@ -523,7 +524,8 @@
     async function handleSubmitReview() {
         const review = document.getElementById('reviewInput').value.trim();
         if (!review) {
-            panelMsg.innerText = "Please enter feedback.";
+            panelMsg.style.color = "var(--danger)";
+            panelMsg.innerText = "Please write a review before submitting.";
             return;
         }
 
@@ -535,15 +537,15 @@
             });
             const data = await res.json();
             if (res.ok) {
-                panelMsg.style.color = "#4af6c6";
-                panelMsg.innerText = "Feedback received. Thank you!";
+                panelMsg.style.color = "var(--accent)";
+                panelMsg.innerText = "Thank you! Feedback received.";
                 document.getElementById('reviewInput').value = "";
             } else {
-                panelMsg.style.color = "#ff6b6b";
-                panelMsg.innerText = "Failed to submit feedback.";
+                panelMsg.style.color = "var(--danger)";
+                panelMsg.innerText = "Failed to submit review.";
             }
         } catch (err) {
-            panelMsg.style.color = "#ff6b6b";
+            panelMsg.style.color = "var(--danger)";
             panelMsg.innerText = "Error submitting feedback.";
         }
     }
@@ -561,7 +563,7 @@
                     alert("Account deleted.");
                     handleLogout();
                 } else {
-                    alert(data.detail || "Error deleting account.");
+                    alert(data.detail || "Could not delete account.");
                 }
             } catch (err) {
                 alert("Network error.");
@@ -600,105 +602,26 @@
 
     function updateStatusText() {
         if (sentenceBuilderToggle.checked) {
-            statusIndicator.innerText = "Sentence Builder ACTIVE. Hold sign steady to append.";
+            statusIndicator.innerText = "Sentence Builder ACTIVE. Hold sign steady to append/act.";
         } else {
-            statusIndicator.innerText = "Sentence Builder OFF. Press 'S' to start.";
+            statusIndicator.innerText = "Sentence Builder OFF. Press 'S' to start appending.";
         }
-    }
-
-    // HAND CALIBRATION WORKFLOW
-    function startHandCalibration() {
-        if (isCalibrating) return;
-        isCalibrating = true;
-        calibrationCountdown = 3;
-        coachOutput.innerText = "✋ OPEN HAND SCAN STARTED:\nHold a flat open palm steady facing the camera...";
-
-        const timer = setInterval(() => {
-            calibrationCountdown--;
-            if (calibrationCountdown > 0) {
-                statusIndicator.innerText = `Scanning open palm... Hold steady (${calibrationCountdown}s)`;
-            } else {
-                clearInterval(timer);
-                captureCalibrationScan();
-            }
-        }, 1000);
-    }
-
-    function captureCalibrationScan() {
-        const captureCtx = hiddenCaptureCanvas.getContext('2d');
-        hiddenCaptureCanvas.width = 320;
-        hiddenCaptureCanvas.height = 240;
-        captureCtx.drawImage(video, 0, 0, hiddenCaptureCanvas.width, hiddenCaptureCanvas.height);
-
-        hiddenCaptureCanvas.toBlob(async (blob) => {
-            if (!blob) {
-                isCalibrating = false;
-                return;
-            }
-            const formData = new FormData();
-            formData.append('file', blob, 'calib.jpg');
-
-            try {
-                const res = await fetch('/calibrate-hand', { method: 'POST', body: formData });
-                const data = await res.json();
-                if (data.success) {
-                    personalScaleOffset = data.scale_factor;
-                    calibStatus.innerText = `Calibrated (Scale: ${personalScaleOffset}x)`;
-                    calibStatus.style.borderColor = "#38ef7d";
-                    coachOutput.innerText = `✅ Hand Calibrated Successfully!\n• Scale Profile: ${personalScaleOffset}x\n• Palm Height: ${data.palm_height}\n• Finger Ratio: ${data.finger_ratio}\nYour gestures are now scaled to your hand dimensions!`;
-                } else {
-                    coachOutput.innerText = `⚠️ Calibration note: ${data.message}. Using default standard profile.`;
-                }
-            } catch (err) {
-                coachOutput.innerText = "Calibration request error. Using standard profile.";
-            } finally {
-                isCalibrating = false;
-                updateStatusText();
-            }
-        }, 'image/jpeg', 0.8);
-    }
-
-    // DRAW TRANSPARENT SKELETON (Completely Invisible / Subtle Radar Scan during Calibration)
-    function drawSkeletonOverlay(landmarks) {
-        const ctx = overlayCanvas.getContext('2d');
-        const w = overlayCanvas.width;
-        const h = overlayCanvas.height;
-
-        ctx.clearRect(0, 0, w, h);
-
-        // While calibrating, draw an elegant scanning radar ring
-        if (isCalibrating && landmarks && landmarks.length > 0) {
-            const wrist = { x: (1 - landmarks[0].x) * w, y: landmarks[0].y * h };
-            ctx.beginPath();
-            ctx.arc(wrist.x, wrist.y - 40, 75, 0, 2 * Math.PI);
-            ctx.strokeStyle = "rgba(56, 239, 125, 0.6)";
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.font = "12px Arial";
-            ctx.fillStyle = "#38ef7d";
-            ctx.fillText(`Scanning: ${calibrationCountdown}s`, wrist.x - 38, wrist.y - 120);
-        }
-        // During normal recognition: completely transparent (zero drawn elements)
     }
 
     async function processFrame() {
         if (isProcessing || !video.videoWidth) return;
 
         isProcessing = true;
+        const ctx = canvas.getContext('2d');
 
-        if (overlayCanvas.width !== video.videoWidth || overlayCanvas.height !== video.videoHeight) {
-            overlayCanvas.width = video.videoWidth;
-            overlayCanvas.height = video.videoHeight;
-        }
+        // Downscale to 320x240 for rapid network transport
+        canvas.width = 320;
+        canvas.height = 240;
 
-        const captureCtx = hiddenCaptureCanvas.getContext('2d');
-        hiddenCaptureCanvas.width = 320;
-        hiddenCaptureCanvas.height = 240;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        captureCtx.drawImage(video, 0, 0, hiddenCaptureCanvas.width, hiddenCaptureCanvas.height);
-
-        hiddenCaptureCanvas.toBlob(async (blob) => {
+        // Compress at 0.5 quality (under 15 KB payload)
+        canvas.toBlob(async (blob) => {
             if (!blob) {
                 isProcessing = false;
                 return;
@@ -714,29 +637,21 @@
                 if (data.success && data.prediction) {
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
-                    confidenceSpan.innerText = `(${data.confidence}%)`;
-                    coachSignBadge.innerText = currentPredictedSign;
 
-                    drawSkeletonOverlay(data.landmarks);
-
-                    if (sentenceBuilderToggle.checked && !isCalibrating) {
+                    if (sentenceBuilderToggle.checked) {
                         handleAutoAppend(currentPredictedSign);
                     }
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
-                    confidenceSpan.innerText = "";
-                    coachSignBadge.innerText = "A";
-                    drawSkeletonOverlay([]);
                     resetHoldTimer();
                 }
             } catch (err) {
                 console.error("Prediction error:", err);
-                drawSkeletonOverlay([]);
             } finally {
                 isProcessing = false;
             }
-        }, 'image/jpeg', 0.6);
+        }, 'image/jpeg', 0.5);
     }
 
     function handleAutoAppend(sign) {
@@ -761,7 +676,7 @@
     function executeSignAction(sign) {
         if (sign === "DELETE") {
             sentenceBox.innerText = sentenceBox.innerText.slice(0, -1);
-            statusIndicator.innerText = "Action: Deleted character ⌫";
+            statusIndicator.innerText = "Action: Deleted last character ⌫";
         } else if (sign === "SPACE") {
             sentenceBox.innerText += " ";
             statusIndicator.innerText = "Action: Added space [ ]";
@@ -786,34 +701,6 @@
     function addSpace() { sentenceBox.innerText += " "; }
     function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
     function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
-
-    /* AI Sign Coach Functions */
-    async function askCoach(queryText) {
-        coachOutput.innerText = "🤖 Coach is thinking...";
-        try {
-            const res = await fetch('/ai-coach', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({query: queryText, current_sign: currentPredictedSign})
-            });
-            const data = await res.json();
-            if (data.success) {
-                coachOutput.innerText = data.response;
-            } else {
-                coachOutput.innerText = "Coach response unavailable.";
-            }
-        } catch (err) {
-            coachOutput.innerText = "Could not connect to AI Coach.";
-        }
-    }
-
-    function sendCustomCoachQuery() {
-        const text = coachInput.value.trim();
-        if (text) {
-            askCoach(text);
-            coachInput.value = "";
-        }
-    }
 
     fetchUserCount();
 </script>
