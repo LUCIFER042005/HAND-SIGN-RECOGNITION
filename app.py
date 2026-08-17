@@ -382,7 +382,7 @@ def submit_hand_sample(data: SignContribution):
     if len(data.landmarks) != 42:
         raise HTTPException(status_code=400, detail="Invalid landmark array length. Expected 42 floats.")
 
-    # 1. LIVE SELF-CLEANING AI GATEKEEPER INSPECTION
+    # Live Self-Cleaning AI Gatekeeper
     is_valid, sim_score = is_sample_clean(data.sign_label, data.landmarks)
     if not is_valid:
         raise HTTPException(
@@ -417,7 +417,6 @@ def retrain_model_pipeline():
     all_data = []
     all_labels = []
 
-    # 1. Load base dataset
     if os.path.exists(DATA_PICKLE_PATH):
         try:
             with open(DATA_PICKLE_PATH, "rb") as f:
@@ -427,7 +426,6 @@ def retrain_model_pipeline():
         except Exception as e:
             print(f"Error loading base pickle: {e}")
 
-    # 2. Load and filter crowdsourced user samples from MySQL
     crowdsourced_accepted = 0
     crowdsourced_rejected = 0
     if MYSQL_HOST:
@@ -503,7 +501,6 @@ def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(auth
 
 @app.post("/admin/clean-db")
 def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
-    """Self-cleaning background job: Scans all database rows and purges anomalies."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -584,7 +581,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         analytics = cursor.fetchall()
 
         cursor.execute(
-            "SELECT id, username, sign_label, landmarks, created_at FROM hand_samples ORDER BY id DESC LIMIT 20")
+            "SELECT id, username, sign_label, landmarks, created_at FROM hand_samples ORDER BY id DESC LIMIT 30")
         samples = cursor.fetchall()
 
         cursor.execute("SELECT COUNT(*) as total_samples FROM hand_samples")
@@ -613,12 +610,12 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
             """
 
         sample_rows = ""
-        for s in samples:
+        for index, s in enumerate(samples, start=1):
             s_date = convert_to_ist_str(s['created_at'])
             lms_raw = s['landmarks'] if isinstance(s['landmarks'], str) else json.dumps(s['landmarks'])
             sample_rows += f"""
             <tr>
-                <td><b>#{s['id']}</b></td>
+                <td><b>{index}</b></td>
                 <td>
                     <canvas id="cvs-{s['id']}" width="55" height="55" style="background:#111; border:1px solid #444; border-radius:4px;"></canvas>
                     <script>drawSkeleton('cvs-{s['id']}', {lms_raw});</script>
@@ -756,7 +753,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 }}
 
                 async function deleteSample(id) {{
-                    if (confirm("Delete sample #" + id + "?")) {{
+                    if (confirm("Delete this sample?")) {{
                         const res = await fetch('/admin/samples/' + id, {{ method: 'DELETE' }});
                         if (res.ok) {{
                             alert("Sample removed.");
@@ -830,7 +827,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>SR NO.</th>
                             <th>POSE</th>
                             <th>USER</th>
                             <th>SIGN</th>
