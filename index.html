@@ -28,17 +28,30 @@
             width: 100%;
             max-width: 480px;
             margin: auto;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #333;
+            background-color: #000;
         }
 
         video {
             width: 100%;
             height: auto;
-            transform: scaleX(-1);
-            border-radius: 8px;
-            border: 2px solid #333;
+            transform: scaleX(-1); /* Mirror camera */
+            display: block;
         }
 
-        canvas {
+        /* Transparent Glowing Skeleton Canvas */
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        #hiddenCaptureCanvas {
             display: none;
         }
 
@@ -51,6 +64,13 @@
         .predicted-char {
             color: #4af6c6;
             font-size: 30px;
+        }
+
+        .confidence-badge {
+            font-size: 13px;
+            color: #888;
+            margin-left: 6px;
+            font-weight: normal;
         }
 
         .sentence-container {
@@ -110,17 +130,6 @@
             background-color: #d32f2f;
         }
 
-        .btn-coach {
-            background: linear-gradient(135deg, #11998e, #38ef7d);
-            color: #121212 !important;
-            font-weight: bold;
-            border: none;
-        }
-        .btn-coach:hover {
-            opacity: 0.9;
-            transform: scale(1.02);
-        }
-
         .status-indicator {
             font-size: 13px;
             color: #aaa;
@@ -162,71 +171,6 @@
             margin-bottom: 15px;
             border: 1px solid #4af6c6;
             text-align: left;
-        }
-
-        /* AI Sign Coach Styles */
-        .coach-container {
-            margin-top: 18px;
-            background: #181818;
-            border: 1px solid #333;
-            border-radius: 10px;
-            padding: 15px;
-            text-align: left;
-        }
-
-        .coach-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #333;
-            padding-bottom: 8px;
-            margin-bottom: 10px;
-        }
-
-        .coach-output {
-            background: #101010;
-            border: 1px solid #282828;
-            border-radius: 6px;
-            padding: 12px;
-            font-size: 13px;
-            color: #ddd;
-            line-height: 1.5;
-            min-height: 60px;
-            white-space: pre-wrap;
-            margin-bottom: 10px;
-        }
-
-        .coach-pills {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
-        }
-
-        .pill {
-            background: #262626;
-            color: #4af6c6;
-            border: 1px solid #444;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            cursor: pointer;
-        }
-        .pill:hover {
-            background: #333;
-            border-color: #4af6c6;
-        }
-
-        .coach-input-group {
-            display: flex;
-            gap: 8px;
-        }
-
-        .coach-input-group input {
-            width: 100%;
-            margin: 0;
-            padding: 8px 12px;
-            font-size: 13px;
         }
     </style>
 </head>
@@ -283,13 +227,16 @@
             <p id="panelMsg" style="font-size: 12px; color: #4af6c6; margin-top: 8px;"></p>
         </div>
 
+        <!-- CAMERA WITH TRANSPARENT SKELETON CANVAS OVERLAY -->
         <div class="video-wrapper">
             <video id="webcam" autoplay playsinline></video>
+            <canvas id="overlayCanvas"></canvas>
         </div>
-        <canvas id="canvas"></canvas>
+        <canvas id="hiddenCaptureCanvas"></canvas>
 
         <div class="prediction-box">
             Recognized Sign: <span id="currentSign" class="predicted-char">-</span>
+            <span id="confidenceSpan" class="confidence-badge"></span>
             <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press 'S' to toggle.</div>
         </div>
 
@@ -310,27 +257,6 @@
                 <input type="checkbox" id="sentenceBuilderToggle"> Enable Auto-Append on Hold (Press <b>'S'</b>)
             </label>
         </div>
-
-        <!-- AI SIGN COACH ASSISTANT WIDGET -->
-        <div class="coach-container">
-            <div class="coach-header">
-                <span style="font-weight: bold; color: #4af6c6;">🤖 AI Sign Coach</span>
-                <span style="font-size: 11px; color: #777;">Zero DB Impact • Real-time Guide</span>
-            </div>
-
-            <div class="coach-pills">
-                <span class="pill" onclick="askCoach('How to do sign ' + (currentPredictedSign || 'A'))">❓ Help With Sign <span id="coachSignBadge">A</span></span>
-                <span class="pill" onclick="askCoach('Why is recognition not working?')">⚠️ Detection Tips</span>
-                <span class="pill" onclick="askCoach('How does sentence builder work?')">✍️ Sentence Builder</span>
-            </div>
-
-            <div id="coachOutput" class="coach-output">👋 Hi! I'm your AI Sign Coach. Perform any gesture or ask a question below if you get stuck!</div>
-
-            <div class="coach-input-group">
-                <input type="text" id="coachInput" placeholder="Ask AI Coach (e.g., 'How to do sign C?', 'Tips for lighting')..." onkeypress="if(event.key==='Enter') sendCustomCoachQuery()">
-                <button class="btn-coach" onclick="sendCustomCoachQuery()">Ask</button>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -344,15 +270,13 @@
     const panelMsg = document.getElementById('panelMsg');
 
     const video = document.getElementById('webcam');
-    const canvas = document.getElementById('canvas');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const hiddenCaptureCanvas = document.getElementById('hiddenCaptureCanvas');
     const currentSignSpan = document.getElementById('currentSign');
+    const confidenceSpan = document.getElementById('confidenceSpan');
     const sentenceBox = document.getElementById('sentenceBox');
     const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
-
-    const coachOutput = document.getElementById('coachOutput');
-    const coachInput = document.getElementById('coachInput');
-    const coachSignBadge = document.getElementById('coachSignBadge');
 
     let currentPredictedSign = "";
     let lastSign = "";
@@ -362,6 +286,16 @@
     let activeUsername = "";
     let activePassword = "";
     const HOLD_THRESHOLD_MS = 1200;
+
+    // MediaPipe Hand Landmark Connections
+    const HAND_CONNECTIONS = [
+        [0, 1], [1, 2], [2, 3], [3, 4],       // Thumb
+        [0, 5], [5, 6], [6, 7], [7, 8],       // Index
+        [5, 9], [9, 10], [10, 11], [11, 12],  // Middle
+        [9, 13], [13, 14], [14, 15], [15, 16],// Ring
+        [13, 17], [17, 18], [18, 19], [19, 20],// Pinky
+        [0, 17]                               // Palm Base
+    ];
 
     async function fetchUserCount() {
         try {
@@ -428,7 +362,7 @@
 
                 startWebcam();
                 if (!processIntervalId) {
-                    processIntervalId = setInterval(processFrame, 500);
+                    processIntervalId = setInterval(processFrame, 300);
                 }
             } else {
                 authMsg.style.color = "#ff6b6b";
@@ -562,17 +496,67 @@
         }
     }
 
+    // DRAW TRANSPARENT SKELETON
+    function drawSkeleton(landmarks) {
+        const ctx = overlayCanvas.getContext('2d');
+        const w = overlayCanvas.width;
+        const h = overlayCanvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+        if (!landmarks || landmarks.length === 0) return;
+
+        // Convert normalized coordinates (mirrored horizontally for user view)
+        const points = landmarks.map(lm => ({
+            x: (1 - lm.x) * w,
+            y: lm.y * h
+        }));
+
+        // Draw Translucent Bones
+        ctx.strokeStyle = "rgba(74, 246, 198, 0.45)"; // Soft glowing neon cyan
+        ctx.lineWidth = 3;
+        ctx.lineCap = "round";
+
+        HAND_CONNECTIONS.forEach(([startIdx, endIdx]) => {
+            const start = points[startIdx];
+            const end = points[endIdx];
+            if (start && end) {
+                ctx.beginPath();
+                ctx.moveTo(start.x, start.y);
+                ctx.lineTo(end.x, end.y);
+                ctx.stroke();
+            }
+        });
+
+        // Draw Translucent Glowing Joints
+        points.forEach((pt, i) => {
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, (i === 4 || i === 8 || i === 12 || i === 16 || i === 20) ? 5 : 3.5, 0, 2 * Math.PI);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+            ctx.shadowColor = "#4af6c6";
+            ctx.shadowBlur = 6;
+            ctx.fill();
+            ctx.shadowBlur = 0; // Reset blur
+        });
+    }
+
     async function processFrame() {
         if (isProcessing || !video.videoWidth) return;
 
         isProcessing = true;
-        const ctx = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
 
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Match overlay canvas size to video dimensions
+        if (overlayCanvas.width !== video.videoWidth || overlayCanvas.height !== video.videoHeight) {
+            overlayCanvas.width = video.videoWidth;
+            overlayCanvas.height = video.videoHeight;
+        }
 
-        canvas.toBlob(async (blob) => {
+        const captureCtx = hiddenCaptureCanvas.getContext('2d');
+        hiddenCaptureCanvas.width = 320;
+        hiddenCaptureCanvas.height = 240;
+
+        captureCtx.drawImage(video, 0, 0, hiddenCaptureCanvas.width, hiddenCaptureCanvas.height);
+
+        hiddenCaptureCanvas.toBlob(async (blob) => {
             if (!blob) {
                 isProcessing = false;
                 return;
@@ -588,7 +572,9 @@
                 if (data.success && data.prediction) {
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
-                    coachSignBadge.innerText = currentPredictedSign;
+                    confidenceSpan.innerText = `(${data.confidence}%)`;
+
+                    drawSkeleton(data.landmarks);
 
                     if (sentenceBuilderToggle.checked) {
                         handleAutoAppend(currentPredictedSign);
@@ -596,15 +582,17 @@
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
-                    coachSignBadge.innerText = "A";
+                    confidenceSpan.innerText = "";
+                    drawSkeleton([]);
                     resetHoldTimer();
                 }
             } catch (err) {
                 console.error("Prediction error:", err);
+                drawSkeleton([]);
             } finally {
                 isProcessing = false;
             }
-        }, 'image/jpeg', 0.8);
+        }, 'image/jpeg', 0.6);
     }
 
     function handleAutoAppend(sign) {
@@ -654,34 +642,6 @@
     function addSpace() { sentenceBox.innerText += " "; }
     function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
     function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
-
-    /* AI Sign Coach Functions */
-    async function askCoach(queryText) {
-        coachOutput.innerText = "🤖 Coach is thinking...";
-        try {
-            const res = await fetch('/ai-coach', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({query: queryText, current_sign: currentPredictedSign})
-            });
-            const data = await res.json();
-            if (data.success) {
-                coachOutput.innerText = data.response;
-            } else {
-                coachOutput.innerText = "Coach response unavailable.";
-            }
-        } catch (err) {
-            coachOutput.innerText = "Could not connect to AI Coach.";
-        }
-    }
-
-    function sendCustomCoachQuery() {
-        const text = coachInput.value.trim();
-        if (text) {
-            askCoach(text);
-            coachInput.value = "";
-        }
-    }
 
     fetchUserCount();
 </script>
