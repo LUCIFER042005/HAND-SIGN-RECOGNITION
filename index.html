@@ -183,23 +183,35 @@
             border: 2px solid #38ef7d;
             border-radius: 12px;
             padding: 24px;
-            max-width: 440px;
+            max-width: 480px;
             width: 90%;
             text-align: center;
             box-shadow: 0 0 25px rgba(56, 239, 125, 0.2);
         }
 
         .target-badge {
-            font-size: 44px;
+            font-size: 42px;
             font-weight: bold;
             color: #38ef7d;
+            margin: 6px 0;
+        }
+
+        .instruction-box {
+            background: #2a2a2a;
+            border-left: 3px solid #38ef7d;
+            border-radius: 6px;
+            padding: 10px 14px;
             margin: 10px 0;
+            font-size: 13px;
+            color: #eee;
+            text-align: left;
+            line-height: 1.4;
         }
 
         .progress-bar-bg {
             background: #333;
             border-radius: 10px;
-            height: 14px;
+            height: 12px;
             overflow: hidden;
             margin: 12px 0;
         }
@@ -296,21 +308,26 @@
     </div>
 </div>
 
-<!-- SMART VALIDATED CROWDSOURCING MODAL -->
+<!-- TEXT-GUIDED 3-SIGN CONTRIBUTION MODAL -->
 <div id="contributeModal">
     <div class="modal-card">
         <h3 style="margin-top:0; color:#38ef7d;">🤝 Train AI on Your Hand</h3>
-        <p style="font-size: 13px; color: #ccc;">Make the exact requested gesture in front of the camera:</p>
 
         <div style="font-size:12px; color:#aaa; text-transform:uppercase;">Sign <span id="currentStepIdx">1</span> of 3:</div>
         <div id="targetSignBadge" class="target-badge">A</div>
 
+        <!-- 1-LINE TEXT INSTRUCTION BOX -->
+        <div class="instruction-box">
+            <b>How to pose:</b> <span id="signInstructionText">Make a closed fist with thumb straight up.</span>
+        </div>
+
         <div class="progress-bar-bg">
             <div id="captureProgressFill" class="progress-bar-fill"></div>
         </div>
-        <div id="modalStatusText" style="font-size: 13px; color: #ffca28; min-height: 20px;">Make sign in camera...</div>
+        <div id="modalStatusText" style="font-size: 13px; color: #ffca28; min-height: 20px;">Show sign to camera...</div>
 
-        <div style="margin-top: 15px;">
+        <div style="margin-top: 15px; display: flex; gap: 8px; justify-content: center;">
+            <a href="/tutorial" target="_blank" class="btn-link" style="background:#222; border: 1px solid #4af6c6; color:#4af6c6;">📖 See in Tutorial</a>
             <button onclick="closeContributeModal()" class="btn-clear">Cancel</button>
         </div>
     </div>
@@ -336,8 +353,37 @@
     const contributeModal = document.getElementById('contributeModal');
     const targetSignBadge = document.getElementById('targetSignBadge');
     const currentStepIdx = document.getElementById('currentStepIdx');
+    const signInstructionText = document.getElementById('signInstructionText');
     const captureProgressFill = document.getElementById('captureProgressFill');
     const modalStatusText = document.getElementById('modalStatusText');
+
+    // TEXT INSTRUCTIONS DICTIONARY FOR EVERY SIGN
+    const SIGN_TIPS = {
+        "A": "Make a tight fist with your thumb resting upright along the side of your index finger.",
+        "B": "Hold all 4 fingers straight up touching together; fold your thumb flat across your palm.",
+        "C": "Curve all 4 fingers and thumb to form a rounded 'C' shape.",
+        "D": "Point your index finger straight up; touch your thumb to middle, ring, and pinky tips.",
+        "E": "Fold all 4 fingertips down tightly into your palm; tuck thumb flat underneath.",
+        "F": "Touch your index fingertip and thumb together to make a circle; extend other 3 fingers up.",
+        "G": "Point your index finger and thumb horizontally to the side like a mini pistol.",
+        "H": "Extend index and middle fingers together horizontally to the side; fold others in.",
+        "I": "Make a closed fist, but point your pinky finger straight up.",
+        "J": "Point pinky up and trace a 'J' hook shape in the air.",
+        "K": "Make a 'V' with index and middle fingers, and rest thumb tip between them.",
+        "L": "Form an 'L' shape with your index finger pointing up and thumb pointing out.",
+        "N": "Make a fist with your thumb tucked underneath your index and middle fingers.",
+        "O": "Curve all fingertips together to touch your thumb tip, making an 'O' circle.",
+        "P": "Make a 'K' sign pointed downwards toward the floor.",
+        "Q": "Point index finger and thumb downward like grasping something small.",
+        "R": "Cross your middle finger over your index finger (like wishing for luck).",
+        "U": "Hold index and middle fingers straight up touching each other.",
+        "V": "Hold index and middle fingers straight up in a peace/victory 'V' shape.",
+        "W": "Hold index, middle, and ring fingers straight up in a 'W' shape.",
+        "X": "Make a fist and curl your index finger into a hook/claw.",
+        "Y": "Extend your thumb and pinky outwards (like a telephone or 'hang loose' sign).",
+        "SPACE": "Open palm held completely flat facing the camera.",
+        "DELETE": "Make a fist with your thumb pointing straight down (thumbs down)."
+    };
 
     let currentPredictedSign = "";
     let lastSign = "";
@@ -555,7 +601,7 @@
         }
     }
 
-    // --- CROWDSOURCED SIGN CONTRIBUTOR FLOW WITH SMART VALIDATION ---
+    // --- CROWDSOURCED SIGN CONTRIBUTOR FLOW ---
     async function openContributeModal() {
         try {
             const res = await fetch('/api/contribute/random-signs');
@@ -579,10 +625,12 @@
 
     function updateModalUI() {
         if (currentSignIndex < assignedSigns.length) {
+            const target = assignedSigns[currentSignIndex];
             currentStepIdx.innerText = (currentSignIndex + 1);
-            targetSignBadge.innerText = assignedSigns[currentSignIndex];
+            targetSignBadge.innerText = target;
+            signInstructionText.innerText = SIGN_TIPS[target] || "Make the requested gesture clearly in front of the camera.";
             modalStatusText.style.color = "#ffca28";
-            modalStatusText.innerText = `Show sign '${assignedSigns[currentSignIndex]}' to camera...`;
+            modalStatusText.innerText = `Show sign '${target}' to camera...`;
             captureProgressFill.style.width = '0%';
         }
     }
@@ -594,17 +642,15 @@
 
         // SMART PRE-VALIDATION CHECK
         if (currentPredictedSign !== targetSign) {
-            // User is showing wrong gesture
             contributionHoldStart = null;
             captureProgressFill.style.width = '0%';
             modalStatusText.style.color = "#ff6b6b";
-            modalStatusText.innerText = `⚠️ Waiting for '${targetSign}' (Currently seeing: '${currentPredictedSign || "None"}')`;
+            modalStatusText.innerText = `⚠️ Pose as '${targetSign}' (Currently seeing: '${currentPredictedSign || "None"}')`;
             return;
         }
 
-        // Correct sign confirmed! Begin hold timer
         modalStatusText.style.color = "#38ef7d";
-        modalStatusText.innerText = `✓ Match! Hold steady...`;
+        modalStatusText.innerText = `✓ Match detected! Hold steady...`;
 
         const now = Date.now();
         if (!contributionHoldStart) {
@@ -639,7 +685,7 @@
             if (res.ok) {
                 currentSignIndex++;
                 if (currentSignIndex >= assignedSigns.length) {
-                    modalStatusText.innerText = "🎉 All 3 validated signs saved! Thank you!";
+                    modalStatusText.innerText = "🎉 All 3 signs validated and saved! Thank you!";
                     setTimeout(() => {
                         closeContributeModal();
                         alert("Great job! Your validated hand samples have been stored.");
