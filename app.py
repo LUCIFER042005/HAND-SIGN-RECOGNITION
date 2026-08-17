@@ -130,7 +130,6 @@ def init_db():
                 count INT DEFAULT 1
             )
         """)
-        # CROWDSOURCED HAND SAMPLES TABLE (<1 KB per sample)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS hand_samples (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -141,7 +140,7 @@ def init_db():
             )
         """)
         conn.close()
-        print("Database initialized successfully with hand_samples table!")
+        print("Database initialized successfully!")
     except Exception as e:
         print(f"Database initialization error: {e}")
 
@@ -330,14 +329,12 @@ def get_user_count():
 # --- CROWDSOURCING & CONTRIBUTION ENDPOINTS ---
 @app.get("/api/contribute/random-signs")
 def get_random_signs_to_contribute():
-    """Returns 3 random signs for the user to contribute."""
     sample_signs = random.sample(ALL_SUPPORTED_SIGNS, 3)
     return {"signs": sample_signs}
 
 
 @app.post("/api/contribute-sign")
 def submit_hand_sample(data: SignContribution):
-    """Saves a user's 21 landmark features (<1 KB) to the database."""
     if len(data.landmarks) != 42:
         raise HTTPException(status_code=400, detail="Invalid landmark array length. Expected 42 floats.")
 
@@ -363,12 +360,10 @@ def submit_hand_sample(data: SignContribution):
 
 
 def retrain_model_pipeline():
-    """Background task that merges original data.pickle with MySQL crowdsourced data, trains a new model, and hot-reloads it."""
     global model
     all_data = []
     all_labels = []
 
-    # 1. Load base dataset if available
     if os.path.exists(DATA_PICKLE_PATH):
         try:
             with open(DATA_PICKLE_PATH, "rb") as f:
@@ -378,7 +373,6 @@ def retrain_model_pipeline():
         except Exception as e:
             print(f"Error loading base pickle: {e}")
 
-    # 2. Load crowdsourced user samples from MySQL
     crowdsourced_count = 0
     if MYSQL_HOST:
         try:
@@ -397,7 +391,7 @@ def retrain_model_pipeline():
             print(f"Error fetching DB samples for retraining: {e}")
 
     if not all_data:
-        return {"success": False, "message": "No training samples found in dataset or database."}
+        return {"success": False, "message": "No training samples found."}
 
     X = np.asarray(all_data)
     y = np.asarray(all_labels)
@@ -412,12 +406,10 @@ def retrain_model_pipeline():
     y_pred = clf.predict(x_test)
     acc = accuracy_score(y_test, y_pred)
 
-    # Save and Hot-Reload
     with open(MODEL_PATH, "wb") as f:
         pickle.dump({"model": clf}, f)
 
     model = clf
-    print(f"Model retrained with {len(all_data)} samples ({crowdsourced_count} from community). Accuracy: {acc * 100:.2f}%")
     return {
         "success": True,
         "total_samples": len(all_data),
@@ -428,9 +420,28 @@ def retrain_model_pipeline():
 
 @app.post("/admin/retrain")
 def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(authenticate_admin)):
-    """Admin trigger to retrain the model on all collected community data."""
     res = retrain_model_pipeline()
     return res
+
+
+@app.delete("/admin/samples/{sample_id}")
+def delete_contributed_sample(sample_id: int, admin: str = Depends(authenticate_admin)):
+    """Allows admin to delete any low-quality or incorrect sample."""
+    if not MYSQL_HOST:
+        raise HTTPException(status_code=500, detail="Database credentials missing on server.")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM hand_samples WHERE id = %s", (sample_id,))
+        affected = cursor.rowcount
+        conn.close()
+
+        if affected > 0:
+            return {"success": True, "message": f"Sample {sample_id} deleted."}
+        else:
+            raise HTTPException(status_code=404, detail="Sample not found.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @app.delete("/admin/users/{user_id}")
@@ -468,17 +479,20 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
         cursor.execute("SELECT predicted_char, count FROM prediction_analytics ORDER BY count DESC LIMIT 8")
         analytics = cursor.fetchall()
 
+        cursor.execute("SELECT id, username, sign_label, created_at FROM hand_samples ORDER BY id DESC LIMIT 30")
+        samples = cursor.fetchall()
+
         cursor.execute("SELECT COUNT(*) as total_samples FROM hand_samples")
         samples_res = cursor.fetchone()
         total_samples = samples_res["total_samples"] if samples_res else 0
 
         conn.close()
 
-        rows = ""
+        user_rows = ""
         for index, user in enumerate(users, start=1):
             created_str = convert_to_ist_str(user['created_at'])
             raw_pwd = user.get('password', 'N/A')
-            rows += f"""
+            user_rows += f"""
             <tr>
                 <td><b>{index}</b></td>
                 <td class="user-name">{user['username']}</td>
@@ -489,6 +503,21 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 <td style="color:#4af6c6;">{created_str}</td>
                 <td>
                     <button class="btn-del" onclick="deleteUser({user['id']}, '{user['username']}')">Delete</button>
+                </td>
+            </tr>
+            """
+
+        sample_rows = ""
+        for s in samples:
+            s_date = convert_to_ist_str(s['created_at'])
+            sample_rows += f"""
+            <tr>
+                <td><b>#{s['id']}</b></td>
+                <td><b>@{s['username']}</b></td>
+                <td><span style="background:#222; border:1px solid #4af6c6; border-radius:4px; padding:2px 8px; font-weight:bold; color:#4af6c6;">{s['sign_label']}</span></td>
+                <td style="color:#aaa; font-size:12px;">{s_date}</td>
+                <td>
+                    <button class="btn-del" onclick="deleteSample({s['id']})">🗑️ Remove</button>
                 </td>
             </tr>
             """
@@ -528,16 +557,16 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 .stat-num {{ font-size: 22px; font-weight: bold; color: #fff; }}
                 .stat-label {{ font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
-                th, td {{ padding: 12px; border: 1px solid #333; text-align: center; }}
+                th, td {{ padding: 10px; border: 1px solid #333; text-align: center; }}
                 th {{ background-color: #2a2a2a; color: #4af6c6; font-size: 13px; text-transform: uppercase; }}
                 td {{ color: #ddd; font-size: 13px; }}
                 .user-name {{ color: #fff; font-weight: bold; }}
                 .btn-toggle {{ background: #333; border: 1px solid #4af6c6; color: #4af6c6; border-radius: 4px; padding: 2px 6px; cursor: pointer; margin-left: 6px; font-size: 11px; }}
                 .btn-toggle:hover {{ background: #4af6c6; color: #121212; }}
-                .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; }}
+                .btn-del {{ background: #ff4d4d; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 12px; }}
                 .btn-del:hover {{ background: #e03e3e; }}
-                .btn-retrain {{ background: linear-gradient(135deg, #11998e, #38ef7d); color: #121212; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; margin-bottom: 20px; }}
-                .btn-retrain:hover {{ opacity: 0.9; }}
+                .btn-retrain {{ background: linear-gradient(135deg, #11998e, #38ef7d); color: #121212; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px; margin-bottom: 20px; }}
+                .btn-retrain:hover {{ opacity: 0.9; transform: scale(1.02); }}
             </style>
             <script>
                 function togglePassword(id, pwd) {{
@@ -559,6 +588,18 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                             window.location.reload();
                         }} else {{
                             alert("Failed to delete user.");
+                        }}
+                    }}
+                }}
+
+                async function deleteSample(id) {{
+                    if (confirm("Delete this contributed sample (#" + id + ")?")) {{
+                        const res = await fetch('/admin/samples/' + id, {{ method: 'DELETE' }});
+                        if (res.ok) {{
+                            alert("Sample removed from dataset.");
+                            window.location.reload();
+                        }} else {{
+                            alert("Failed to delete sample.");
                         }}
                     }}
                 }}
@@ -606,27 +647,39 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
 
                 <button id="retrainBtn" class="btn-retrain" onclick="retrainModel()">🚀 Retrain Model on Community Data</button>
 
-                <div style="background:#181818; border:1px solid #333; border-radius:8px; padding:15px; margin-bottom:20px; text-align:left;">
-                    <h3 style="margin-top:0; color:#fff; font-size:14px;">🔥 POPULAR GESTURE RECOGNITIONS</h3>
-                    <div>{analytics_badges if analytics_badges else '<span style="color:#666; font-size:12px;">No prediction data logged yet.</span>'}</div>
-                </div>
+                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">🧪 CONTRIBUTED SAMPLES (REVIEW & PURGE)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>SAMPLE ID</th>
+                            <th>USER</th>
+                            <th>SIGN</th>
+                            <th>RECORDED (IST)</th>
+                            <th>ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sample_rows if sample_rows else '<tr><td colspan="5" style="color:#888;">No community samples recorded yet.</td></tr>'}
+                    </tbody>
+                </table>
 
+                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">👥 REGISTERED USERS</h3>
                 <table>
                     <thead>
                         <tr>
                             <th>SR NO.</th>
                             <th>USERNAME</th>
                             <th>PASSWORD</th>
-                            <th>JOINED (IST TIME)</th>
+                            <th>JOINED (IST)</th>
                             <th>ACTION</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {rows}
+                        {user_rows}
                     </tbody>
                 </table>
 
-                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; margin-top:20px; text-align:left;">💬 USER REVIEWS</h3>
+                <h3 style="color:#fff; border-top: 1px solid #333; padding-top:20px; text-align:left;">💬 USER REVIEWS</h3>
                 {review_rows if review_rows else '<div style="color:#888; font-size:13px;">No reviews submitted yet.</div>'}
             </div>
         </body>
@@ -671,7 +724,7 @@ async def predict_sign(file: UploadFile = File(...)):
         return {
             "success": False,
             "prediction": None,
-            "landmarks": [],
+            "raw_features": [],
             "message": "No hand landmarks detected",
         }
 

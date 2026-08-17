@@ -190,7 +190,7 @@
         }
 
         .target-badge {
-            font-size: 40px;
+            font-size: 44px;
             font-weight: bold;
             color: #38ef7d;
             margin: 10px 0;
@@ -199,7 +199,7 @@
         .progress-bar-bg {
             background: #333;
             border-radius: 10px;
-            height: 12px;
+            height: 14px;
             overflow: hidden;
             margin: 12px 0;
         }
@@ -296,11 +296,11 @@
     </div>
 </div>
 
-<!-- CROWDSOURCING / HELP AI LEARN MODAL -->
+<!-- SMART VALIDATED CROWDSOURCING MODAL -->
 <div id="contributeModal">
     <div class="modal-card">
         <h3 style="margin-top:0; color:#38ef7d;">🤝 Train AI on Your Hand</h3>
-        <p style="font-size: 13px; color: #ccc;">Make the requested gesture and hold steady in front of the camera for 1.5 seconds:</p>
+        <p style="font-size: 13px; color: #ccc;">Make the exact requested gesture in front of the camera:</p>
 
         <div style="font-size:12px; color:#aaa; text-transform:uppercase;">Sign <span id="currentStepIdx">1</span> of 3:</div>
         <div id="targetSignBadge" class="target-badge">A</div>
@@ -308,7 +308,7 @@
         <div class="progress-bar-bg">
             <div id="captureProgressFill" class="progress-bar-fill"></div>
         </div>
-        <div id="modalStatusText" style="font-size: 13px; color: #38ef7d;">Hold steady in camera...</div>
+        <div id="modalStatusText" style="font-size: 13px; color: #ffca28; min-height: 20px;">Make sign in camera...</div>
 
         <div style="margin-top: 15px;">
             <button onclick="closeContributeModal()" class="btn-clear">Cancel</button>
@@ -555,7 +555,7 @@
         }
     }
 
-    // --- CROWDSOURCED SIGN CONTRIBUTOR FLOW ---
+    // --- CROWDSOURCED SIGN CONTRIBUTOR FLOW WITH SMART VALIDATION ---
     async function openContributeModal() {
         try {
             const res = await fetch('/api/contribute/random-signs');
@@ -581,13 +581,30 @@
         if (currentSignIndex < assignedSigns.length) {
             currentStepIdx.innerText = (currentSignIndex + 1);
             targetSignBadge.innerText = assignedSigns[currentSignIndex];
-            modalStatusText.innerText = "Hold steady in camera...";
+            modalStatusText.style.color = "#ffca28";
+            modalStatusText.innerText = `Show sign '${assignedSigns[currentSignIndex]}' to camera...`;
             captureProgressFill.style.width = '0%';
         }
     }
 
     function handleContributionTracking() {
         if (!isContributing || !latestRawFeatures || currentSignIndex >= assignedSigns.length) return;
+
+        const targetSign = assignedSigns[currentSignIndex];
+
+        // SMART PRE-VALIDATION CHECK
+        if (currentPredictedSign !== targetSign) {
+            // User is showing wrong gesture
+            contributionHoldStart = null;
+            captureProgressFill.style.width = '0%';
+            modalStatusText.style.color = "#ff6b6b";
+            modalStatusText.innerText = `⚠️ Waiting for '${targetSign}' (Currently seeing: '${currentPredictedSign || "None"}')`;
+            return;
+        }
+
+        // Correct sign confirmed! Begin hold timer
+        modalStatusText.style.color = "#38ef7d";
+        modalStatusText.innerText = `✓ Match! Hold steady...`;
 
         const now = Date.now();
         if (!contributionHoldStart) {
@@ -606,7 +623,7 @@
 
     async function submitCurrentContributedSign() {
         const sign = assignedSigns[currentSignIndex];
-        modalStatusText.innerText = `Saving sign '${sign}'...`;
+        modalStatusText.innerText = `Saving validated sample for '${sign}'...`;
 
         try {
             const res = await fetch('/api/contribute-sign', {
@@ -622,10 +639,10 @@
             if (res.ok) {
                 currentSignIndex++;
                 if (currentSignIndex >= assignedSigns.length) {
-                    modalStatusText.innerText = "🎉 All 3 signs contributed! Thank you for helping the AI learn!";
+                    modalStatusText.innerText = "🎉 All 3 validated signs saved! Thank you!";
                     setTimeout(() => {
                         closeContributeModal();
-                        alert("Thank you! Your hand samples have been stored to help the AI adapt to your hand.");
+                        alert("Great job! Your validated hand samples have been stored.");
                     }, 1200);
                 } else {
                     updateModalUI();
@@ -676,7 +693,11 @@
                     currentSignSpan.innerText = "-";
                     latestRawFeatures = null;
                     contributionHoldStart = null;
-                    if (isContributing) captureProgressFill.style.width = '0%';
+                    if (isContributing) {
+                        captureProgressFill.style.width = '0%';
+                        modalStatusText.style.color = "#ffca28";
+                        modalStatusText.innerText = "Show hand clearly in camera...";
+                    }
                     resetHoldTimer();
                 }
             } catch (err) {
