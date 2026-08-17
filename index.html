@@ -37,11 +37,11 @@
         video {
             width: 100%;
             height: auto;
-            transform: scaleX(-1); /* Mirror camera */
+            transform: scaleX(-1);
             display: block;
         }
 
-        /* Transparent Glowing Skeleton Canvas */
+        /* Transparent Skeleton & Scan Radar Canvas */
         #overlayCanvas {
             position: absolute;
             top: 0;
@@ -130,10 +130,32 @@
             background-color: #d32f2f;
         }
 
+        .btn-calibrate {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            color: #121212 !important;
+            font-weight: bold;
+            border: none;
+        }
+        .btn-calibrate:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
+
         .status-indicator {
             font-size: 13px;
             color: #aaa;
             margin-top: 5px;
+        }
+
+        .calibration-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            background: rgba(56, 239, 125, 0.15);
+            color: #38ef7d;
+            border: 1px solid rgba(56, 239, 125, 0.3);
+            margin-left: 6px;
         }
 
         .auth-card {
@@ -172,6 +194,71 @@
             border: 1px solid #4af6c6;
             text-align: left;
         }
+
+        /* AI Sign Coach Box */
+        .coach-container {
+            margin-top: 18px;
+            background: #181818;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: left;
+        }
+
+        .coach-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .coach-output {
+            background: #101010;
+            border: 1px solid #282828;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 13px;
+            color: #ddd;
+            line-height: 1.5;
+            min-height: 60px;
+            white-space: pre-wrap;
+            margin-bottom: 10px;
+        }
+
+        .coach-pills {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .pill {
+            background: #262626;
+            color: #4af6c6;
+            border: 1px solid #444;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .pill:hover {
+            background: #333;
+            border-color: #4af6c6;
+        }
+
+        .coach-input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .coach-input-group input {
+            width: 100%;
+            margin: 0;
+            padding: 8px 12px;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -197,8 +284,9 @@
     <!-- MAIN APP WORKSPACE -->
     <div id="appSection" style="display: none;">
         <div class="user-bar">
-            <span>Welcome, <b id="loggedInUser" style="color: #4af6c6;">User</b></span>
+            <span>Welcome, <b id="loggedInUser" style="color: #4af6c6;">User</b> <span id="calibStatus" class="calibration-badge">Standard Profile</span></span>
             <div>
+                <button class="btn-calibrate" onclick="startHandCalibration()">⚡ Calibrate Hand</button>
                 <a href="/tutorial" target="_blank" class="btn-link" style="background:#2e7d32;">Tutorial</a>
                 <button onclick="toggleUserPanel()">Profile</button>
                 <button onclick="handleLogout()" class="btn-clear">Logout</button>
@@ -257,6 +345,28 @@
                 <input type="checkbox" id="sentenceBuilderToggle"> Enable Auto-Append on Hold (Press <b>'S'</b>)
             </label>
         </div>
+
+        <!-- AI SIGN COACH ASSISTANT CHATBOT -->
+        <div class="coach-container">
+            <div class="coach-header">
+                <span style="font-weight: bold; color: #4af6c6;">🤖 AI Sign Coach</span>
+                <span style="font-size: 11px; color: #777;">Interactive Troubleshooting & Tips</span>
+            </div>
+
+            <div class="coach-pills">
+                <span class="pill" onclick="askCoach('How to do sign ' + (currentPredictedSign || 'A'))">❓ Help With Sign <span id="coachSignBadge">A</span></span>
+                <span class="pill" onclick="askCoach('How does Hand Calibration work?')">✋ Hand Calibration</span>
+                <span class="pill" onclick="askCoach('Why is recognition not working?')">⚠️ Detection Tips</span>
+                <span class="pill" onclick="askCoach('How does sentence builder work?')">✍️ Sentence Builder</span>
+            </div>
+
+            <div id="coachOutput" class="coach-output">👋 Hi! I'm your AI Sign Coach. Click '⚡ Calibrate Hand' to calibrate your unique hand proportions, or ask any question below!</div>
+
+            <div class="coach-input-group">
+                <input type="text" id="coachInput" placeholder="Ask AI Coach (e.g., 'How to do sign C?', 'Why is recognition failing?')..." onkeypress="if(event.key==='Enter') sendCustomCoachQuery()">
+                <button class="btn-calibrate" onclick="sendCustomCoachQuery()">Ask</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -277,6 +387,11 @@
     const sentenceBox = document.getElementById('sentenceBox');
     const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
+    const calibStatus = document.getElementById('calibStatus');
+
+    const coachOutput = document.getElementById('coachOutput');
+    const coachInput = document.getElementById('coachInput');
+    const coachSignBadge = document.getElementById('coachSignBadge');
 
     let currentPredictedSign = "";
     let lastSign = "";
@@ -287,15 +402,10 @@
     let activePassword = "";
     const HOLD_THRESHOLD_MS = 1200;
 
-    // MediaPipe Hand Landmark Connections
-    const HAND_CONNECTIONS = [
-        [0, 1], [1, 2], [2, 3], [3, 4],       // Thumb
-        [0, 5], [5, 6], [6, 7], [7, 8],       // Index
-        [5, 9], [9, 10], [10, 11], [11, 12],  // Middle
-        [9, 13], [13, 14], [14, 15], [15, 16],// Ring
-        [13, 17], [17, 18], [18, 19], [19, 20],// Pinky
-        [0, 17]                               // Palm Base
-    ];
+    // Calibration State
+    let isCalibrating = false;
+    let calibrationCountdown = 3;
+    let personalScaleOffset = 1.0;
 
     async function fetchUserCount() {
         try {
@@ -496,47 +606,80 @@
         }
     }
 
-    // DRAW TRANSPARENT SKELETON
-    function drawSkeleton(landmarks) {
+    // HAND CALIBRATION WORKFLOW
+    function startHandCalibration() {
+        if (isCalibrating) return;
+        isCalibrating = true;
+        calibrationCountdown = 3;
+        coachOutput.innerText = "✋ OPEN HAND SCAN STARTED:\nHold a flat open palm steady facing the camera...";
+
+        const timer = setInterval(() => {
+            calibrationCountdown--;
+            if (calibrationCountdown > 0) {
+                statusIndicator.innerText = `Scanning open palm... Hold steady (${calibrationCountdown}s)`;
+            } else {
+                clearInterval(timer);
+                captureCalibrationScan();
+            }
+        }, 1000);
+    }
+
+    function captureCalibrationScan() {
+        const captureCtx = hiddenCaptureCanvas.getContext('2d');
+        hiddenCaptureCanvas.width = 320;
+        hiddenCaptureCanvas.height = 240;
+        captureCtx.drawImage(video, 0, 0, hiddenCaptureCanvas.width, hiddenCaptureCanvas.height);
+
+        hiddenCaptureCanvas.toBlob(async (blob) => {
+            if (!blob) {
+                isCalibrating = false;
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', blob, 'calib.jpg');
+
+            try {
+                const res = await fetch('/calibrate-hand', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    personalScaleOffset = data.scale_factor;
+                    calibStatus.innerText = `Calibrated (Scale: ${personalScaleOffset}x)`;
+                    calibStatus.style.borderColor = "#38ef7d";
+                    coachOutput.innerText = `✅ Hand Calibrated Successfully!\n• Scale Profile: ${personalScaleOffset}x\n• Palm Height: ${data.palm_height}\n• Finger Ratio: ${data.finger_ratio}\nYour gestures are now scaled to your hand dimensions!`;
+                } else {
+                    coachOutput.innerText = `⚠️ Calibration note: ${data.message}. Using default standard profile.`;
+                }
+            } catch (err) {
+                coachOutput.innerText = "Calibration request error. Using standard profile.";
+            } finally {
+                isCalibrating = false;
+                updateStatusText();
+            }
+        }, 'image/jpeg', 0.8);
+    }
+
+    // DRAW TRANSPARENT SKELETON (Completely Invisible / Subtle Radar Scan during Calibration)
+    function drawSkeletonOverlay(landmarks) {
         const ctx = overlayCanvas.getContext('2d');
         const w = overlayCanvas.width;
         const h = overlayCanvas.height;
 
         ctx.clearRect(0, 0, w, h);
-        if (!landmarks || landmarks.length === 0) return;
 
-        // Convert normalized coordinates (mirrored horizontally for user view)
-        const points = landmarks.map(lm => ({
-            x: (1 - lm.x) * w,
-            y: lm.y * h
-        }));
-
-        // Draw Translucent Bones
-        ctx.strokeStyle = "rgba(74, 246, 198, 0.45)"; // Soft glowing neon cyan
-        ctx.lineWidth = 3;
-        ctx.lineCap = "round";
-
-        HAND_CONNECTIONS.forEach(([startIdx, endIdx]) => {
-            const start = points[startIdx];
-            const end = points[endIdx];
-            if (start && end) {
-                ctx.beginPath();
-                ctx.moveTo(start.x, start.y);
-                ctx.lineTo(end.x, end.y);
-                ctx.stroke();
-            }
-        });
-
-        // Draw Translucent Glowing Joints
-        points.forEach((pt, i) => {
+        // While calibrating, draw an elegant scanning radar ring
+        if (isCalibrating && landmarks && landmarks.length > 0) {
+            const wrist = { x: (1 - landmarks[0].x) * w, y: landmarks[0].y * h };
             ctx.beginPath();
-            ctx.arc(pt.x, pt.y, (i === 4 || i === 8 || i === 12 || i === 16 || i === 20) ? 5 : 3.5, 0, 2 * Math.PI);
-            ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-            ctx.shadowColor = "#4af6c6";
-            ctx.shadowBlur = 6;
-            ctx.fill();
-            ctx.shadowBlur = 0; // Reset blur
-        });
+            ctx.arc(wrist.x, wrist.y - 40, 75, 0, 2 * Math.PI);
+            ctx.strokeStyle = "rgba(56, 239, 125, 0.6)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.font = "12px Arial";
+            ctx.fillStyle = "#38ef7d";
+            ctx.fillText(`Scanning: ${calibrationCountdown}s`, wrist.x - 38, wrist.y - 120);
+        }
+        // During normal recognition: completely transparent (zero drawn elements)
     }
 
     async function processFrame() {
@@ -544,7 +687,6 @@
 
         isProcessing = true;
 
-        // Match overlay canvas size to video dimensions
         if (overlayCanvas.width !== video.videoWidth || overlayCanvas.height !== video.videoHeight) {
             overlayCanvas.width = video.videoWidth;
             overlayCanvas.height = video.videoHeight;
@@ -573,22 +715,24 @@
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
                     confidenceSpan.innerText = `(${data.confidence}%)`;
+                    coachSignBadge.innerText = currentPredictedSign;
 
-                    drawSkeleton(data.landmarks);
+                    drawSkeletonOverlay(data.landmarks);
 
-                    if (sentenceBuilderToggle.checked) {
+                    if (sentenceBuilderToggle.checked && !isCalibrating) {
                         handleAutoAppend(currentPredictedSign);
                     }
                 } else {
                     currentPredictedSign = "";
                     currentSignSpan.innerText = "-";
                     confidenceSpan.innerText = "";
-                    drawSkeleton([]);
+                    coachSignBadge.innerText = "A";
+                    drawSkeletonOverlay([]);
                     resetHoldTimer();
                 }
             } catch (err) {
                 console.error("Prediction error:", err);
-                drawSkeleton([]);
+                drawSkeletonOverlay([]);
             } finally {
                 isProcessing = false;
             }
@@ -642,6 +786,34 @@
     function addSpace() { sentenceBox.innerText += " "; }
     function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
     function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
+
+    /* AI Sign Coach Functions */
+    async function askCoach(queryText) {
+        coachOutput.innerText = "🤖 Coach is thinking...";
+        try {
+            const res = await fetch('/ai-coach', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query: queryText, current_sign: currentPredictedSign})
+            });
+            const data = await res.json();
+            if (data.success) {
+                coachOutput.innerText = data.response;
+            } else {
+                coachOutput.innerText = "Coach response unavailable.";
+            }
+        } catch (err) {
+            coachOutput.innerText = "Could not connect to AI Coach.";
+        }
+    }
+
+    function sendCustomCoachQuery() {
+        const text = coachInput.value.trim();
+        if (text) {
+            askCoach(text);
+            coachInput.value = "";
+        }
+    }
 
     fetchUserCount();
 </script>
