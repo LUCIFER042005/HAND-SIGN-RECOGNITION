@@ -130,17 +130,41 @@ def compute_golden_centroids():
         print(f"Error computing golden centroids: {e}")
 
 
-def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.86) -> tuple[bool, float]:
-    if sign_label not in GOLDEN_CENTROIDS:
-        return True, 1.0
+def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.92) -> tuple[bool, float]:
+    """Strict 3-layer validation: Landmark size, Model prediction confidence, and Golden Cosine similarity."""
+    global model, GOLDEN_CENTROIDS
 
-    target_vec = GOLDEN_CENTROIDS[sign_label]
+    if len(landmarks) != 42:
+        return False, 0.0
+
     cand_vec = np.array(landmarks)
     norm = np.linalg.norm(cand_vec)
     if norm > 0:
-        cand_vec = cand_vec / norm
+        cand_norm = cand_vec / norm
+    else:
+        return False, 0.0
 
-    cos_sim = float(np.dot(target_vec, cand_vec))
+    # 1. Cosine similarity against Golden Centroid
+    cos_sim = 1.0
+    if sign_label in GOLDEN_CENTROIDS:
+        target_vec = GOLDEN_CENTROIDS[sign_label]
+        cos_sim = float(np.dot(target_vec, cand_norm))
+
+    # 2. Strict ML Classifier Prediction & Probability Check
+    if model is not None:
+        try:
+            pred = model.predict([cand_vec])[0]
+            if str(pred) != str(sign_label):
+                return False, cos_sim
+
+            if hasattr(model, "predict_proba"):
+                probs = model.predict_proba([cand_vec])[0]
+                max_prob = float(np.max(probs))
+                if max_prob < 0.75:
+                    return False, max_prob
+        except Exception:
+            pass
+
     return cos_sim >= threshold, cos_sim
 
 
@@ -370,7 +394,6 @@ def get_user_reviews_and_replies(username: str):
 
 @app.post("/users/delete-review")
 def delete_own_review(data: DeleteOwnReview):
-    """Allows a logged-in user to delete only their own review."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -413,7 +436,6 @@ def reply_to_review(data: AdminReply, admin: str = Depends(authenticate_admin)):
 
 @app.delete("/admin/reviews/{review_id}")
 def delete_entire_review_by_admin(review_id: int, admin: str = Depends(authenticate_admin)):
-    """Admin can delete the user review and everything completely."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -432,7 +454,6 @@ def delete_entire_review_by_admin(review_id: int, admin: str = Depends(authentic
 
 @app.delete("/admin/reviews/{review_id}/reply")
 def delete_admin_reply_only(review_id: int, admin: str = Depends(authenticate_admin)):
-    """Admin can delete only their sent reply if they made a typo, keeping the user's review intact."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -442,7 +463,7 @@ def delete_admin_reply_only(review_id: int, admin: str = Depends(authenticate_ad
         affected = cursor.rowcount
         conn.close()
         if affected > 0:
-            return {"success": True, "message": "Admin reply erased."}
+            return {"success": True, "message": "Admin reply removed."}
         else:
             raise HTTPException(status_code=404, detail="Review not found.")
     except Exception as e:
@@ -506,7 +527,7 @@ def submit_hand_sample(data: SignContribution):
     if not is_valid:
         raise HTTPException(
             status_code=400,
-            detail=f"Sample rejected by Self-Cleaning AI. Quality match: {sim_score * 100:.1f}% (Required: ≥86%). Please hold the exact sign."
+            detail=f"Sample rejected by Self-Cleaning AI. Quality match: {sim_score * 100:.1f}% (Required: ≥92%). Please hold the exact sign."
         )
 
     if not MYSQL_HOST:
@@ -620,6 +641,7 @@ def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(auth
 
 @app.post("/admin/clean-db")
 def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
+    """Strict Janitor: Purges any sample where Model Disagrees OR Similarity < 0.92."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -640,7 +662,12 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
             cursor.execute(f"DELETE FROM hand_samples WHERE id IN ({format_strings})", tuple(purged_ids))
 
         conn.close()
-        return {"success": True, "scanned_total": len(rows), "purged_junk_count": len(purged_ids)}
+        return {
+            "success": True,
+            "scanned_total": len(rows),
+            "purged_junk_count": len(purged_ids),
+            "retained_valid_count": len(rows) - len(purged_ids)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
@@ -1101,7 +1128,7 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                         try {{
                             const res = await fetch('/admin/clean-db', {{ method: 'POST' }});
                             const data = await res.json();
-                            alert("Janitor complete!\\nScanned: " + data.scanned_total + " samples\\nAuto-Purged Outliers: " + data.purged_junk_count);
+                            alert("Janitor complete!\\nScanned: " + data.scanned_total + " samples\\nAuto-Purged Outliers: " + data.purged_junk_count + "\\nRetained Valid: " + data.retained_valid_count);
                             window.location.reload();
                         }} catch(e) {{
                             alert("Error running DB Janitor.");
