@@ -316,7 +316,7 @@
             <span>Welcome, <b id="loggedInUser" style="color: #22c55e;">User</b></span>
             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                 <button class="btn-green" onclick="openContributeModal()">🤝 Help Train AI</button>
-                <a href="/tutorial" target="_blank" class="btn-link">Tutorial</a>
+                <a href="/tutorial" class="btn-link">Tutorial</a>
                 <button onclick="toggleUserPanel()">Profile</button>
                 <button onclick="handleLogout()" class="btn-danger">Logout</button>
             </div>
@@ -486,6 +486,25 @@
     let contributionHoldStart = null;
     const CONTRIB_HOLD_MS = 1500;
 
+    // --- AUTO-LOGIN RESTORATION ON PAGE LOAD ---
+    function checkPersistedSession() {
+        const savedUser = localStorage.getItem('slr_user');
+        const savedPass = localStorage.getItem('slr_pass');
+        if (savedUser && savedPass) {
+            activeUsername = savedUser;
+            activePassword = savedPass;
+            authSection.style.display = 'none';
+            appSection.style.display = 'block';
+            loggedInUserSpan.innerText = activeUsername;
+
+            loadMyReviews();
+            startWebcam();
+            if (!processIntervalId) {
+                processIntervalId = setInterval(processFrame, 300);
+            }
+        }
+    }
+
     async function fetchUserCount() {
         try {
             const res = await fetch('/users/count');
@@ -607,6 +626,11 @@
             if (res.ok) {
                 activeUsername = username;
                 activePassword = password;
+
+                // SAVE SESSION TO LOCAL STORAGE
+                localStorage.setItem('slr_user', username);
+                localStorage.setItem('slr_pass', password);
+
                 authSection.style.display = 'none';
                 appSection.style.display = 'block';
                 loggedInUserSpan.innerText = data.username;
@@ -653,6 +677,7 @@
                 panelMsg.style.color = "#22c55e";
                 panelMsg.innerText = "Password updated successfully.";
                 activePassword = newPass;
+                localStorage.setItem('slr_pass', newPass);
                 document.getElementById('oldPassInput').value = "";
                 document.getElementById('newPassInput').value = "";
             } else {
@@ -716,6 +741,8 @@
     }
 
     function handleLogout() {
+        localStorage.removeItem('slr_user');
+        localStorage.removeItem('slr_pass');
         if (processIntervalId) clearInterval(processIntervalId);
         window.location.reload();
     }
@@ -956,6 +983,7 @@
     function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
 
     fetchUserCount();
+    checkPersistedSession();
 </script>
 
 </body>
