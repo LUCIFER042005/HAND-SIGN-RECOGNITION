@@ -130,8 +130,8 @@ def compute_golden_centroids():
         print(f"Error computing golden centroids: {e}")
 
 
-def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.92) -> tuple[bool, float]:
-    """Strict 3-layer validation: Landmark size, Model prediction confidence, and Golden Cosine similarity."""
+def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.80) -> tuple[bool, float]:
+    """Balanced validation: Rejects garbage/anomalies (below 0.80) while preserving genuine human variations."""
     global model, GOLDEN_CENTROIDS
 
     if len(landmarks) != 42:
@@ -144,28 +144,17 @@ def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 
     else:
         return False, 0.0
 
-    # 1. Cosine similarity against Golden Centroid
+    # 1. Cosine similarity against Golden Centroid (0.80 threshold accommodates real hand shapes)
     cos_sim = 1.0
     if sign_label in GOLDEN_CENTROIDS:
         target_vec = GOLDEN_CENTROIDS[sign_label]
         cos_sim = float(np.dot(target_vec, cand_norm))
 
-    # 2. Strict ML Classifier Prediction & Probability Check
-    if model is not None:
-        try:
-            pred = model.predict([cand_vec])[0]
-            if str(pred) != str(sign_label):
-                return False, cos_sim
+    # Reject if geometry is completely off (less than 80% match to target pose)
+    if cos_sim < threshold:
+        return False, cos_sim
 
-            if hasattr(model, "predict_proba"):
-                probs = model.predict_proba([cand_vec])[0]
-                max_prob = float(np.max(probs))
-                if max_prob < 0.75:
-                    return False, max_prob
-        except Exception:
-            pass
-
-    return cos_sim >= threshold, cos_sim
+    return True, cos_sim
 
 
 def init_db():
@@ -523,11 +512,11 @@ def submit_hand_sample(data: SignContribution):
     if len(data.landmarks) != 42:
         raise HTTPException(status_code=400, detail="Invalid landmark array length. Expected 42 floats.")
 
-    is_valid, sim_score = is_sample_clean(data.sign_label, data.landmarks)
+    is_valid, sim_score = is_sample_clean(data.sign_label, data.landmarks, threshold=0.80)
     if not is_valid:
         raise HTTPException(
             status_code=400,
-            detail=f"Sample rejected by Self-Cleaning AI. Quality match: {sim_score * 100:.1f}% (Required: ≥92%). Please hold the exact sign."
+            detail=f"Sample rejected by Self-Cleaning AI. Match score: {sim_score * 100:.1f}% (Required: ≥80%). Please hold the exact sign clearly."
         )
 
     if not MYSQL_HOST:
@@ -584,7 +573,7 @@ def retrain_model_pipeline():
 
             for lbl, lms_list in samples_by_sign.items():
                 if len(lms_list) >= 4:
-                    iso = IsolationForest(contamination=0.15, random_state=42)
+                    iso = IsolationForest(contamination=0.10, random_state=42)
                     preds = iso.fit_predict(lms_list)
                     for idx, pred in enumerate(preds):
                         if pred == 1:
@@ -641,7 +630,7 @@ def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(auth
 
 @app.post("/admin/clean-db")
 def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
-    """Strict Janitor: Purges any sample where Model Disagrees OR Similarity < 0.92."""
+    """Balanced Janitor: Only purges true anomalies (< 80% geometric match)."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -653,7 +642,7 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
         purged_ids = []
         for r in rows:
             lms = json.loads(r["landmarks"])
-            is_valid, _ = is_sample_clean(r["sign_label"], lms)
+            is_valid, _ = is_sample_clean(r["sign_label"], lms, threshold=0.80)
             if not is_valid:
                 purged_ids.append(r["id"])
 
