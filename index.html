@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Sign Recognition & Multilingual Sentence Builder</title>
+    <title>Hand Sign Recognition & Sentence Builder</title>
     <style>
         * {
             box-sizing: border-box;
@@ -67,7 +67,7 @@
             margin-bottom: 18px;
         }
 
-        input, textarea, select {
+        input, textarea {
             padding: 12px 14px;
             margin: 6px 0;
             width: 100%;
@@ -80,7 +80,7 @@
             transition: 0.2s;
         }
 
-        input:focus, textarea:focus, select:focus {
+        input:focus, textarea:focus {
             border-color: #22c55e;
         }
 
@@ -172,17 +172,6 @@
             display: none;
         }
 
-        /* Language Picker Banner */
-        .language-picker-banner {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #101317;
-            border: 1px solid #262b32;
-            padding: 10px 14px;
-            margin-bottom: 14px;
-        }
-
         .prediction-box {
             margin-top: 16px;
             font-size: 18px;
@@ -191,16 +180,9 @@
 
         .predicted-char {
             color: #22c55e;
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 700;
             margin-left: 6px;
-        }
-
-        .predicted-script {
-            color: #38bdf8;
-            font-size: 28px;
-            font-weight: 700;
-            margin-left: 4px;
         }
 
         .sentence-container {
@@ -213,32 +195,12 @@
 
         .sentence-box {
             min-height: 42px;
-            font-size: 20px;
+            font-size: 18px;
             color: #ffffff;
             word-wrap: break-word;
             border-bottom: 1px solid #262b32;
             padding-bottom: 8px;
             margin-bottom: 12px;
-            font-weight: 500;
-        }
-
-        .translation-container {
-            margin-top: 14px;
-            background: #101317;
-            border-left: 3px solid #38bdf8;
-            border-top: 1px solid #262b32;
-            border-right: 1px solid #262b32;
-            border-bottom: 1px solid #262b32;
-            padding: 14px;
-            text-align: left;
-        }
-
-        .translation-output {
-            min-height: 28px;
-            font-size: 17px;
-            font-weight: 600;
-            color: #38bdf8;
-            word-wrap: break-word;
         }
 
         .controls {
@@ -375,21 +337,6 @@
             </div>
         </div>
 
-        <!-- ACTIVE LANGUAGE SELECTOR BANNER -->
-        <div class="language-picker-banner">
-            <span style="font-size: 13px; color: #94a3b8; font-weight: 600;">Display Language:</span>
-            <select id="targetLanguageSelect" style="width: auto; max-width: 190px; padding: 5px 10px; font-size: 13px; margin: 0; background: #181b20; border: 1px solid #3b424e; color: #38bdf8; font-weight: bold;" onchange="handleLanguageChange()">
-                <option value="en">English (A, B, C)</option>
-                <option value="hi">Hindi (अ, ब, क)</option>
-                <option value="gu" selected>Gujarati (અ, બ, ક)</option>
-                <option value="mr">Marathi (अ, ब, क)</option>
-                <option value="es">Spanish (Español)</option>
-                <option value="fr">French (Français)</option>
-                <option value="de">German (Deutsch)</option>
-                <option value="ja">Japanese (ア, イ, ウ)</option>
-            </select>
-        </div>
-
         <!-- ADMIN REPLY NOTIFICATION -->
         <div id="adminReplyBanner">
             <div style="font-size:12px; color:#22c55e; font-weight:700; margin-bottom:4px;">📩 MESSAGE FROM ADMIN:</div>
@@ -411,6 +358,7 @@
                 <textarea id="reviewInput" rows="2" placeholder="Leave a review..."></textarea><br>
                 <button class="btn-green" style="margin-top:6px;" onclick="handleSubmitReview()">Submit Review</button>
 
+                <!-- MY PREVIOUS REVIEWS & DELETE LIST -->
                 <div style="margin-top:14px;">
                     <b style="font-size:12px; color:#94a3b8;">My Submitted Reviews:</b>
                     <div id="myReviewsList" style="margin-top:6px; font-size:12px;"></div>
@@ -430,13 +378,11 @@
 
         <div class="prediction-box">
             Recognized Sign: <span id="currentSign" class="predicted-char">-</span>
-            <span id="scriptSign" class="predicted-script"></span>
             <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press 'S' to toggle.</div>
         </div>
 
-        <!-- SENTENCE BOX -->
         <div class="sentence-container">
-            <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight:600; letter-spacing:0.5px;">Sentence Builder Output</div>
+            <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight:600; letter-spacing:0.5px;">Sentence Output</div>
             <div id="sentenceBox" class="sentence-box"></div>
 
             <div class="controls">
@@ -445,14 +391,6 @@
                 <button onclick="backspace()">Backspace ⌫</button>
                 <button class="btn-danger" onclick="clearSentence()">Clear All</button>
             </div>
-        </div>
-
-        <!-- FULL-WORD TRANSLATION CARD -->
-        <div class="translation-container">
-            <div style="font-size: 11px; text-transform: uppercase; color: #38bdf8; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 6px;">
-                🌐 Full Word / Meaning Translation
-            </div>
-            <div id="translatedOutput" class="translation-output">...</div>
         </div>
 
         <div style="margin-top: 16px; font-size: 13px; text-align: left; color:#cbd5e1;">
@@ -471,6 +409,7 @@
         <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; font-weight:600;">Sign <span id="currentStepIdx">1</span> of 3:</div>
         <div id="targetSignBadge" class="target-badge">A</div>
 
+        <!-- DYNAMIC REFERENCE IMAGE -->
         <div class="sign-reference-box">
             <img id="targetSignImg" class="sign-reference-img" src="/static/signs/A.jpg" alt="Sign Reference" onerror="this.src='https://placehold.co/130x130/13161a/22c55e?text=?'">
         </div>
@@ -511,10 +450,7 @@
     const modalVideo = document.getElementById('modalWebcam');
     const canvas = document.getElementById('canvas');
     const currentSignSpan = document.getElementById('currentSign');
-    const scriptSignSpan = document.getElementById('scriptSign');
     const sentenceBox = document.getElementById('sentenceBox');
-    const translatedOutput = document.getElementById('translatedOutput');
-    const targetLanguageSelect = document.getElementById('targetLanguageSelect');
     const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
 
@@ -525,22 +461,6 @@
     const signInstructionText = document.getElementById('signInstructionText');
     const captureProgressFill = document.getElementById('captureProgressFill');
     const modalStatusText = document.getElementById('modalStatusText');
-
-    // --- PHONETIC SCRIPT MAPPINGS FOR SINGLE LETTERS ---
-    const SCRIPT_MAP = {
-        "gu": { "A": "અ", "B": "બ", "C": "ક", "D": "ડ", "E": "એ", "F": "ફ", "G": "ગ", "H": "હ", "I": "ઇ", "J": "જ", "K": "ક", "L": "લ", "N": "ન", "O": "ઓ", "P": "પ", "Q": "ક્યુ", "R": "ર", "U": "ઉ", "V": "વ", "W": "વ", "X": "ક્ષ", "Y": "ય", "SPACE": " ", "DELETE": "⌫" },
-        "hi": { "A": "अ", "B": "ब", "C": "क", "D": "ड", "E": "ए", "F": "फ़", "G": "ग", "H": "ह", "I": "इ", "J": "ज", "K": "क", "L": "ल", "N": "न", "O": "ओ", "P": "प", "Q": "क्यू", "R": "र", "U": "उ", "V": "व", "W": "व", "X": "क्स", "Y": "य", "SPACE": " ", "DELETE": "⌫" },
-        "mr": { "A": "अ", "B": "ब", "C": "क", "D": "ड", "E": "ए", "F": "फ", "G": "ग", "H": "ह", "I": "इ", "J": "ज", "K": "क", "L": "ल", "N": "न", "O": "ओ", "P": "प", "Q": "क्यू", "R": "र", "U": "उ", "V": "व", "W": "व", "X": "क्स", "Y": "य", "SPACE": " ", "DELETE": "⌫" },
-        "ja": { "A": "ア", "B": "ブ", "C": "ク", "D": "ド", "E": "エ", "F": "フ", "G": "グ", "H": "ハ", "I": "イ", "J": "ジ", "K": "カ", "L": "ル", "N": "ン", "O": "オ", "P": "プ", "Q": "キュ", "R": "ラ", "U": "ウ", "V": "ヴ", "W": "ワ", "X": "クス", "Y": "ヤ", "SPACE": " ", "DELETE": "⌫" }
-    };
-
-    function getLetterInLanguage(sign, lang) {
-        if (!sign) return "";
-        if (SCRIPT_MAP[lang] && SCRIPT_MAP[lang][sign]) {
-            return SCRIPT_MAP[lang][sign];
-        }
-        return sign;
-    }
 
     const SIGN_TIPS = {
         "A": "Make a tight fist with your thumb resting upright along the side of your index finger.",
@@ -569,7 +489,6 @@
         "DELETE": "Make a fist with your thumb pointing straight down (thumbs down)."
     };
 
-    let rawEnglishSentence = "";
     let currentStream = null;
     let currentPredictedSign = "";
     let lastSign = "";
@@ -587,85 +506,7 @@
     let contributionHoldStart = null;
     const CONTRIB_HOLD_MS = 1500;
 
-    // --- FULL-WORD TRANSLATION ENGINE ---
-    let translationDebounceTimer = null;
-
-    function handleLanguageChange() {
-        renderSentence();
-        updateSignDisplay();
-        translateSentence();
-    }
-
-    function renderSentence() {
-        const lang = targetLanguageSelect.value;
-        if (!rawEnglishSentence) {
-            sentenceBox.innerText = "";
-            return;
-        }
-
-        if (lang === "en" || !SCRIPT_MAP[lang]) {
-            sentenceBox.innerText = rawEnglishSentence;
-        } else {
-            let scriptChars = "";
-            for (let char of rawEnglishSentence) {
-                if (char === " ") {
-                    scriptChars += " ";
-                } else if (SCRIPT_MAP[lang][char]) {
-                    scriptChars += SCRIPT_MAP[lang][char];
-                } else {
-                    scriptChars += char;
-                }
-            }
-            sentenceBox.innerText = scriptChars;
-        }
-    }
-
-    function updateSignDisplay() {
-        if (!currentPredictedSign) {
-            currentSignSpan.innerText = "-";
-            scriptSignSpan.innerText = "";
-            return;
-        }
-
-        const lang = targetLanguageSelect.value;
-        const mapped = getLetterInLanguage(currentPredictedSign, lang);
-
-        currentSignSpan.innerText = currentPredictedSign;
-        if (mapped !== currentPredictedSign) {
-            scriptSignSpan.innerText = `(${mapped})`;
-        } else {
-            scriptSignSpan.innerText = "";
-        }
-    }
-
-    async function translateSentence() {
-        const text = rawEnglishSentence.trim();
-        const targetLang = targetLanguageSelect.value;
-
-        if (!text || targetLang === "en") {
-            translatedOutput.innerText = "...";
-            return;
-        }
-
-        translatedOutput.innerText = "Translating meaning...";
-
-        clearTimeout(translationDebounceTimer);
-        translationDebounceTimer = setTimeout(async () => {
-            try {
-                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
-                const data = await res.json();
-                if (data && data.responseData && data.responseData.translatedText) {
-                    translatedOutput.innerText = data.responseData.translatedText;
-                } else {
-                    translatedOutput.innerText = text;
-                }
-            } catch (err) {
-                console.error("Translation error", err);
-                translatedOutput.innerText = "Translation unavailable";
-            }
-        }, 400);
-    }
-
+    // --- AUTO-LOGIN RESTORATION ON PAGE LOAD ---
     function checkPersistedSession() {
         const savedUser = localStorage.getItem('slr_user');
         const savedPass = localStorage.getItem('slr_pass');
@@ -987,7 +828,10 @@
             const target = assignedSigns[currentSignIndex];
             currentStepIdx.innerText = (currentSignIndex + 1);
             targetSignBadge.innerText = target;
+
+            // Set dynamic sign reference image
             targetSignImg.src = `/static/signs/${target}.jpg`;
+
             signInstructionText.innerText = SIGN_TIPS[target] || "Make the requested gesture clearly in front of the camera.";
             modalStatusText.style.color = "#eab308";
             modalStatusText.innerText = `Show sign '${target}' to camera...`;
@@ -1085,7 +929,7 @@
 
                 if (data.success && data.prediction) {
                     currentPredictedSign = data.prediction;
-                    updateSignDisplay();
+                    currentSignSpan.innerText = currentPredictedSign;
                     latestRawFeatures = data.raw_features || null;
 
                     if (isContributing) {
@@ -1095,7 +939,7 @@
                     }
                 } else {
                     currentPredictedSign = "";
-                    updateSignDisplay();
+                    currentSignSpan.innerText = "-";
                     latestRawFeatures = null;
                     contributionHoldStart = null;
                     if (isContributing) {
@@ -1133,21 +977,16 @@
     }
 
     function executeSignAction(sign) {
-        const lang = targetLanguageSelect.value;
-        const localized = getLetterInLanguage(sign, lang);
-
         if (sign === "DELETE") {
-            rawEnglishSentence = rawEnglishSentence.slice(0, -1);
+            sentenceBox.innerText = sentenceBox.innerText.slice(0, -1);
             statusIndicator.innerText = "Action: Deleted character ⌫";
         } else if (sign === "SPACE") {
-            rawEnglishSentence += " ";
+            sentenceBox.innerText += " ";
             statusIndicator.innerText = "Action: Added space [ ]";
         } else {
-            rawEnglishSentence += sign;
-            statusIndicator.innerText = `Added '${sign}' (${localized})`;
+            sentenceBox.innerText += sign;
+            statusIndicator.innerText = `Added '${sign}'`;
         }
-        renderSentence();
-        translateSentence();
     }
 
     function resetHoldTimer() {
@@ -1162,24 +1001,9 @@
         }
     }
 
-    function addSpace() {
-        rawEnglishSentence += " ";
-        renderSentence();
-        translateSentence();
-    }
-
-    function backspace() {
-        rawEnglishSentence = rawEnglishSentence.slice(0, -1);
-        renderSentence();
-        translateSentence();
-    }
-
-    function clearSentence() {
-        rawEnglishSentence = "";
-        renderSentence();
-        translatedOutput.innerText = "...";
-        resetHoldTimer();
-    }
+    function addSpace() { sentenceBox.innerText += " "; }
+    function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
+    function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
 
     fetchUserCount();
     checkPersistedSession();
