@@ -11,6 +11,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, B
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import mediapipe as mp
 import numpy as np
@@ -72,6 +73,12 @@ INDEX_PATH = os.path.join(BASE_DIR, "index.html")
 TUTORIAL_PATH = os.path.join(BASE_DIR, "tutorial.html")
 MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 DATA_PICKLE_PATH = os.path.join(BASE_DIR, "data.pickle")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+# Mount static files folder to serve /static/signs/...
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(STATIC_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_USER = os.getenv("MYSQL_USER")
@@ -131,7 +138,6 @@ def compute_golden_centroids():
 
 
 def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.80) -> tuple[bool, float]:
-    """Balanced validation: Rejects garbage/anomalies (below 0.80) while preserving genuine human variations."""
     global model, GOLDEN_CENTROIDS
 
     if len(landmarks) != 42:
@@ -144,13 +150,11 @@ def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 
     else:
         return False, 0.0
 
-    # 1. Cosine similarity against Golden Centroid (0.80 threshold accommodates real hand shapes)
     cos_sim = 1.0
     if sign_label in GOLDEN_CENTROIDS:
         target_vec = GOLDEN_CENTROIDS[sign_label]
         cos_sim = float(np.dot(target_vec, cand_norm))
 
-    # Reject if geometry is completely off (less than 80% match to target pose)
     if cos_sim < threshold:
         return False, cos_sim
 
@@ -630,7 +634,6 @@ def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(auth
 
 @app.post("/admin/clean-db")
 def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
-    """Balanced Janitor: Only purges true anomalies (< 80% geometric match)."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
