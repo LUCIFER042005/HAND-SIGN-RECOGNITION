@@ -239,17 +239,17 @@
         }
 
         .target-badge {
-            font-size: 40px;
+            font-size: 34px;
             font-weight: 800;
             color: #22c55e;
-            margin: 4px 0;
+            margin: 2px 0 8px 0;
         }
 
         .modal-camera-box {
             position: relative;
             width: 100%;
             max-width: 320px;
-            height: 210px;
+            height: 200px;
             margin: 10px auto;
             border: 1px solid #2d333b;
             background: #000;
@@ -261,6 +261,22 @@
             height: 100%;
             object-fit: cover;
             transform: scaleX(-1);
+        }
+
+        .sign-reference-box {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 6px auto;
+        }
+
+        .sign-reference-img {
+            width: 130px;
+            height: 130px;
+            object-fit: contain;
+            background: #0d0f12;
+            border: 2px solid #22c55e;
+            padding: 4px;
         }
 
         .instruction-box {
@@ -316,7 +332,6 @@
             <span>Welcome, <b id="loggedInUser" style="color: #22c55e;">User</b></span>
             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                 <button class="btn-green" onclick="openContributeModal()">🤝 Help Train AI</button>
-                <a href="/tutorial" class="btn-link">Tutorial</a>
                 <button onclick="toggleUserPanel()">Profile</button>
                 <button onclick="handleLogout()" class="btn-danger">Logout</button>
             </div>
@@ -386,13 +401,18 @@
     </div>
 </div>
 
-<!-- 3-SIGN CONTRIBUTION MODAL WITH LIVE MINI-CAMERA VIEW -->
+<!-- 3-SIGN CONTRIBUTION MODAL WITH DIRECT REFERENCE IMAGE -->
 <div id="contributeModal">
     <div class="modal-card">
         <h3 style="margin-top:0; color:#ffffff; font-size:16px;">🤝 Train AI on Your Hand</h3>
 
         <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; font-weight:600;">Sign <span id="currentStepIdx">1</span> of 3:</div>
         <div id="targetSignBadge" class="target-badge">A</div>
+
+        <!-- DYNAMIC REFERENCE IMAGE -->
+        <div class="sign-reference-box">
+            <img id="targetSignImg" class="sign-reference-img" src="/static/signs/A.jpg" alt="Sign Reference" onerror="this.src='https://placehold.co/130x130/13161a/22c55e?text=?'">
+        </div>
 
         <div class="modal-camera-box">
             <video id="modalWebcam" autoplay playsinline muted></video>
@@ -408,7 +428,6 @@
         <div id="modalStatusText" style="font-size: 12px; color: #eab308; min-height: 18px; font-weight:500;">Show sign to camera...</div>
 
         <div style="margin-top: 14px; display: flex; gap: 8px; justify-content: center;">
-            <a href="/tutorial" target="_blank" class="btn-link">📖 Tutorial</a>
             <button onclick="closeContributeModal()" class="btn-danger">Cancel</button>
         </div>
     </div>
@@ -437,6 +456,7 @@
 
     const contributeModal = document.getElementById('contributeModal');
     const targetSignBadge = document.getElementById('targetSignBadge');
+    const targetSignImg = document.getElementById('targetSignImg');
     const currentStepIdx = document.getElementById('currentStepIdx');
     const signInstructionText = document.getElementById('signInstructionText');
     const captureProgressFill = document.getElementById('captureProgressFill');
@@ -627,7 +647,6 @@
                 activeUsername = username;
                 activePassword = password;
 
-                // SAVE SESSION TO LOCAL STORAGE
                 localStorage.setItem('slr_user', username);
                 localStorage.setItem('slr_pass', password);
 
@@ -809,6 +828,10 @@
             const target = assignedSigns[currentSignIndex];
             currentStepIdx.innerText = (currentSignIndex + 1);
             targetSignBadge.innerText = target;
+
+            // Set dynamic sign reference image
+            targetSignImg.src = `/static/signs/${target}.jpg`;
+
             signInstructionText.innerText = SIGN_TIPS[target] || "Make the requested gesture clearly in front of the camera.";
             modalStatusText.style.color = "#eab308";
             modalStatusText.innerText = `Show sign '${target}' to camera...`;
