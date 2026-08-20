@@ -75,6 +75,7 @@ MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 DATA_PICKLE_PATH = os.path.join(BASE_DIR, "data.pickle")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
+# Mount static files folder to serve /static/signs/...
 if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -1238,24 +1239,18 @@ async def predict_sign(file: UploadFile = File(...)):
             "success": False,
             "prediction": None,
             "raw_features": [],
-            "norm_landmarks": [],
-            "confidence": 0,
             "message": "No hand landmarks detected",
         }
 
     data_aux = []
-    norm_landmarks = []
     x_ = []
     y_ = []
 
     hand_landmarks = results.multi_hand_landmarks[0]
 
     for i in range(len(hand_landmarks.landmark)):
-        lm_x = hand_landmarks.landmark[i].x
-        lm_y = hand_landmarks.landmark[i].y
-        x_.append(lm_x)
-        y_.append(lm_y)
-        norm_landmarks.append({"x": lm_x, "y": lm_y})
+        x_.append(hand_landmarks.landmark[i].x)
+        y_.append(hand_landmarks.landmark[i].y)
 
     for i in range(len(hand_landmarks.landmark)):
         data_aux.append(hand_landmarks.landmark[i].x - min(x_))
@@ -1263,10 +1258,6 @@ async def predict_sign(file: UploadFile = File(...)):
 
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
-
-    # Compute similarity against Golden Centroid for live confidence score
-    _, sim_score = is_sample_clean(predicted_character, data_aux, threshold=0.0)
-    confidence_pct = round(max(0.0, min(sim_score, 1.0)) * 100, 1)
 
     if MYSQL_HOST:
         try:
@@ -1287,10 +1278,7 @@ async def predict_sign(file: UploadFile = File(...)):
     return {
         "success": True,
         "prediction": predicted_character,
-        "confidence": confidence_pct,
         "raw_features": data_aux,
-        "norm_landmarks": norm_landmarks,
-        "golden_centroid": GOLDEN_CENTROIDS.get(predicted_character, []).tolist() if predicted_character in GOLDEN_CENTROIDS else [],
         "bbox": {
             "x_min": min(x_),
             "y_min": min(y_),
