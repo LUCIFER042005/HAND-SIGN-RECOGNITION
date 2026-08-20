@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Sign Tutorial & Dictionary</title>
+    <title>Tutorial - ASL Signs Guide</title>
     <style>
         * {
             box-sizing: border-box;
@@ -12,16 +12,24 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #121417;
+            background-color: #121417;
             color: #f8fafc;
             margin: 0;
-            padding: 35px 15px;
+            padding: 30px 15px;
             min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
         }
 
         .container {
-            max-width: 1100px;
-            margin: 0 auto;
+            width: 100%;
+            max-width: 720px;
+            margin: auto;
+            background: #181b20;
+            padding: 28px;
+            border: 1px solid #262b32;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.45);
         }
 
         .header {
@@ -29,122 +37,103 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid #262b32;
-            padding-bottom: 18px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-            gap: 12px;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
         }
 
         h1 {
+            font-size: 22px;
+            font-weight: 700;
             color: #ffffff;
             margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-            letter-spacing: 0.3px;
         }
 
-        .btn-back {
-            background: #1e2229;
-            border: 1px solid #2d333b;
+        .btn-link {
+            background-color: #1e2229;
             color: #f8fafc;
-            padding: 9px 18px;
-            text-decoration: none;
-            font-weight: 600;
+            border: 1px solid #2d333b;
+            padding: 8px 14px;
+            cursor: pointer;
             font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
             transition: 0.2s ease;
         }
 
-        .btn-back:hover {
-            background: #282e38;
-            border-color: #3b424e;
+        .btn-link:hover {
+            background-color: #282e38;
         }
 
-        .subtitle {
-            color: #94a3b8;
-            font-size: 13px;
-            margin-bottom: 25px;
-            line-height: 1.5;
-        }
-
-        .cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        .tutorial-grid {
+            display: flex;
+            flex-direction: column;
             gap: 16px;
         }
 
-        .guide-card {
-            background: #181b20;
-            border: 1px solid #262b32;
-            padding: 18px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        .sign-card {
             display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .guide-card:hover {
-            transform: translateY(-3px);
-            border-color: #22c55e;
-            box-shadow: 0 8px 25px rgba(34, 197, 94, 0.1);
-        }
-
-        .guide-card.special-card {
-            border-color: #2d333b;
-        }
-
-        .guide-card.special-card:hover {
-            border-color: #eab308;
-            box-shadow: 0 8px 25px rgba(234, 179, 8, 0.1);
-        }
-
-        .card-top {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin-bottom: 12px;
-        }
-
-        .letter-badge {
-            width: 50px;
-            height: 50px;
+            align-items: stretch;
             background: #13161a;
-            border: 1px solid #22c55e;
+            border: 1px solid #262b32;
+            padding: 16px;
+            gap: 18px;
+            text-align: left;
+        }
+
+        /* ENLARGED IMAGE CONTAINER (140px x 140px) */
+        .sign-media-col {
+            flex: 0 0 140px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+        }
+
+        .sign-img {
+            width: 140px;
+            height: 140px;
+            object-fit: cover;
+            background: #ffffff;
+            border: 2px solid #22c55e;
+            display: block;
+        }
+
+        .sign-info-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .sign-title {
+            font-size: 18px;
             font-weight: 700;
-            color: #22c55e;
-            flex-shrink: 0;
-        }
-
-        .special-card .letter-badge {
-            border-color: #eab308;
-            color: #eab308;
-            font-size: 13px;
-        }
-
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
             color: #ffffff;
+            margin-bottom: 8px;
         }
 
-        .instructions {
-            font-size: 13px;
+        .sign-desc {
+            background: #0d0f12;
+            border-left: 3px solid #22c55e;
+            padding: 12px 14px;
+            font-size: 14px;
             color: #cbd5e1;
             line-height: 1.5;
-            background: #13161a;
-            padding: 12px 14px;
-            border-left: 3px solid #22c55e;
-            border-top: 1px solid #22262c;
-            border-right: 1px solid #22262c;
-            border-bottom: 1px solid #22262c;
+            margin: 0;
         }
 
-        .special-card .instructions {
-            border-left-color: #eab308;
+        @media (max-width: 540px) {
+            .sign-card {
+                flex-direction: column;
+                align-items: center;
+            }
+            .sign-media-col {
+                flex: 0 0 auto;
+            }
+            .sign-info-col {
+                width: 100%;
+                text-align: left;
+            }
         }
     </style>
 </head>
@@ -152,63 +141,276 @@
 
 <div class="container">
     <div class="header">
-        <h1>📖 Custom Dataset Sign Language Guide</h1>
-        <a href="/" class="btn-back">⬅ Return to Main App</a>
+        <h1>📖 Sign Language Guide</h1>
+        <a href="/" class="btn-link">← Back to App</a>
     </div>
 
-    <div class="subtitle">
-        Reference dictionary and hand posture instructions for your exact 24 custom trained gestures.
-    </div>
+    <div class="tutorial-grid">
+        <!-- Sign A -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/A.jpg" alt="Sign A" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=A'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign A</div>
+                <p class="sign-desc">Make a closed fist facing forward with all 4 fingers folded down and thumb resting upright along the side of the index finger.</p>
+            </div>
+        </div>
 
-    <div class="cards-grid" id="guideGrid">
-        <!-- Cards generated by JavaScript -->
+        <!-- Sign B -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/B.jpg" alt="Sign B" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=B'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign B</div>
+                <p class="sign-desc">Hold all 4 fingers straight up touching together; fold your thumb flat across the palm.</p>
+            </div>
+        </div>
+
+        <!-- Sign C -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/C.jpg" alt="Sign C" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=C'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign C</div>
+                <p class="sign-desc">Curve all 4 fingers and thumb to form an open 'C' shape facing sideways.</p>
+            </div>
+        </div>
+
+        <!-- Sign D -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/D.jpg" alt="Sign D" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=D'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign D</div>
+                <p class="sign-desc">Point your index finger straight up; touch your thumb to middle, ring, and pinky tips to make an 'O'.</p>
+            </div>
+        </div>
+
+        <!-- Sign E -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/E.jpg" alt="Sign E" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=E'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign E</div>
+                <p class="sign-desc">Fold all 4 fingertips down tightly against the palm; tuck the thumb flat underneath the fingers.</p>
+            </div>
+        </div>
+
+        <!-- Sign F -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/F.jpg" alt="Sign F" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=F'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign F</div>
+                <p class="sign-desc">Touch the index finger and thumb tips together to make a circle; extend the other 3 fingers straight up.</p>
+            </div>
+        </div>
+
+        <!-- Sign G -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/G.jpg" alt="Sign G" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=G'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign G</div>
+                <p class="sign-desc">Point index finger and thumb horizontally to the side parallel to each other like a mini pistol.</p>
+            </div>
+        </div>
+
+        <!-- Sign H -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/H.jpg" alt="Sign H" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=H'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign H</div>
+                <p class="sign-desc">Extend both index and middle fingers together horizontally to the side; tuck other fingers in.</p>
+            </div>
+        </div>
+
+        <!-- Sign I -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/I.jpg" alt="Sign I" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=I'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign I</div>
+                <p class="sign-desc">Make a closed fist with your pinky finger pointing straight up.</p>
+            </div>
+        </div>
+
+        <!-- Sign J -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/J.jpg" alt="Sign J" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=J'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign J</div>
+                <p class="sign-desc">Extend your pinky finger and trace a 'J' hook motion in the air.</p>
+            </div>
+        </div>
+
+        <!-- Sign K -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/K.jpg" alt="Sign K" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=K'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign K</div>
+                <p class="sign-desc">Point index and middle fingers upward in a 'V' shape, with your thumb tip resting in between them.</p>
+            </div>
+        </div>
+
+        <!-- Sign L -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/L.jpg" alt="Sign L" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=L'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign L</div>
+                <p class="sign-desc">Form an 'L' shape with your index finger pointing straight up and thumb extended to the side.</p>
+            </div>
+        </div>
+
+        <!-- Sign N -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/N.jpg" alt="Sign N" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=N'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign N</div>
+                <p class="sign-desc">Make a fist with your thumb tucked underneath your index and middle fingers.</p>
+            </div>
+        </div>
+
+        <!-- Sign O -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/O.jpg" alt="Sign O" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=O'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign O</div>
+                <p class="sign-desc">Curve all four fingers to meet your thumb tip, forming an 'O' ring.</p>
+            </div>
+        </div>
+
+        <!-- Sign P -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/P.jpg" alt="Sign P" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=P'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign P</div>
+                <p class="sign-desc">Make the 'K' sign shape oriented downward towards the floor.</p>
+            </div>
+        </div>
+
+        <!-- Sign Q -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/Q.jpg" alt="Sign Q" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=Q'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign Q</div>
+                <p class="sign-desc">Point your index finger and thumb downward like grasping something small.</p>
+            </div>
+        </div>
+
+        <!-- Sign R -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/R.jpg" alt="Sign R" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=R'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign R</div>
+                <p class="sign-desc">Cross your middle finger over your index finger (like wishing for luck).</p>
+            </div>
+        </div>
+
+        <!-- Sign U -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/U.jpg" alt="Sign U" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=U'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign U</div>
+                <p class="sign-desc">Hold index and middle fingers straight up touching together, with thumb tucked over ring finger.</p>
+            </div>
+        </div>
+
+        <!-- Sign V -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/V.jpg" alt="Sign V" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=V'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign V</div>
+                <p class="sign-desc">Hold index and middle fingers straight up separated in a peace/victory 'V' shape.</p>
+            </div>
+        </div>
+
+        <!-- Sign W -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/W.jpg" alt="Sign W" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=W'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign W</div>
+                <p class="sign-desc">Hold index, middle, and ring fingers straight up separated in a 'W' shape.</p>
+            </div>
+        </div>
+
+        <!-- Sign X -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/X.jpg" alt="Sign X" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=X'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign X</div>
+                <p class="sign-desc">Make a fist and curl your index finger into a hook/claw shape.</p>
+            </div>
+        </div>
+
+        <!-- Sign Y -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/Y.jpg" alt="Sign Y" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=Y'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign Y</div>
+                <p class="sign-desc">Extend your thumb and pinky outwards while curling the middle three fingers (phone gesture).</p>
+            </div>
+        </div>
+
+        <!-- Sign SPACE -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/SPACE.jpg" alt="Sign SPACE" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=SPACE'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign SPACE [ ]</div>
+                <p class="sign-desc">Hold open palm completely flat facing the camera with all five fingers spread.</p>
+            </div>
+        </div>
+
+        <!-- Sign DELETE -->
+        <div class="sign-card">
+            <div class="sign-media-col">
+                <img src="/static/signs/DELETE.jpg" alt="Sign DELETE" class="sign-img" onerror="this.src='https://placehold.co/140x140/13161a/22c55e?text=DEL'">
+            </div>
+            <div class="sign-info-col">
+                <div class="sign-title">Sign DELETE ⌫</div>
+                <p class="sign-desc">Make a fist with your thumb pointing straight down (thumbs-down gesture).</p>
+            </div>
+        </div>
     </div>
 </div>
-
-<script>
-    const signGuide = {
-        "A": { title: "Sign A", guide: "Make a closed fist facing forward with all 4 fingers folded down and thumb resting upright along the side of the index finger." },
-        "B": { title: "Sign B", guide: "Hold all 4 fingers straight up together, folding your thumb flat across your palm." },
-        "C": { title: "Sign C", guide: "Curve your fingers and thumb sideways in an open arc to form the shape of the letter 'C'." },
-        "D": { title: "Sign D", guide: "Point your index finger straight up into the air with the other fingers curled closed." },
-        "E": { title: "Sign E", guide: "Curl all four fingertips tightly down into your palm with thumb tucked underneath." },
-        "F": { title: "Sign F", guide: "Touch your index finger and thumb tip together in a circle, holding middle, ring, and pinky straight up." },
-        "G": { title: "Sign G", guide: "Point your index finger horizontally to the side with thumb held parallel." },
-        "H": { title: "Sign H", guide: "Extend both your index and middle fingers straight up together with thumb holding remaining fingers down." },
-        "I": { title: "Sign I", guide: "Make a closed fist and extend only your pinky finger straight up into the air." },
-        "J": { title: "Sign J", guide: "Hold your pinky finger straight up, ready to trace the 'J' letter curve in the air." },
-        "K": { title: "Sign K", guide: "Point index and middle fingers in an angled 'V' with thumb placed directly between them." },
-        "L": { title: "Sign L", guide: "Extend your index finger straight up and thumb outward to make a crisp 'L' shape." },
-        "N": { title: "Sign N", guide: "Make a fist facing forward with your thumb folded tightly under the front fingers." },
-        "O": { title: "Sign O", guide: "Touch all fingertips and thumb together in a circular ring 'O' shape." },
-        "P": { title: "Sign P", guide: "Hand tilted pointing index finger forward and downward horizontally." },
-        "Q": { title: "Sign Q", guide: "Point both your index finger and thumb downward in a pinch grip." },
-        "R": { title: "Sign R", guide: "Cross your middle finger over your index finger like making a lucky wish." },
-        "U": { title: "Sign U", guide: "Extend your index and pinky fingers upright while holding middle and ring fingers closed down." },
-        "V": { title: "Sign V", guide: "Extend index and middle fingers straight up and spread them apart in a peace sign." },
-        "W": { title: "Sign W", guide: "Hold index, middle, and ring fingers straight up and spread apart like a 'W'." },
-        "X": { title: "Sign X", guide: "Make a fist with only the index finger raised and bent down into a small hook shape." },
-        "Y": { title: "Sign Y", guide: "Make a fist and extend only your thumb and pinky finger outward (hang loose / shaka sign)." },
-        "DELETE": { title: "Action: DELETE", guide: "Raise index and pinky fingers upright with middle and ring fingers closed (horns pose) to delete the last character." },
-        "SPACE": { title: "Action: SPACE", guide: "Extend thumb, index, and pinky fingers outward with middle and ring folded (3-finger open pose) to insert a space." }
-    };
-
-    const grid = document.getElementById('guideGrid');
-    Object.keys(signGuide).forEach(key => {
-        const item = signGuide[key];
-        const isSpecial = (key === "DELETE" || key === "SPACE");
-        const card = document.createElement('div');
-        card.className = `guide-card ${isSpecial ? 'special-card' : ''}`;
-        card.innerHTML = `
-            <div class="card-top">
-                <div class="letter-badge">${isSpecial ? (key === 'DELETE' ? '⌫ DEL' : '␣ SPC') : key}</div>
-                <div class="card-title">${item.title}</div>
-            </div>
-            <div class="instructions">${item.guide}</div>
-        `;
-        grid.appendChild(card);
-    });
-</script>
 
 </body>
 </html>
