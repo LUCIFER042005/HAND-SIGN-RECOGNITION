@@ -75,7 +75,6 @@ MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 DATA_PICKLE_PATH = os.path.join(BASE_DIR, "data.pickle")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-# Mount static files folder to serve /static/signs/...
 if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -1249,8 +1248,10 @@ async def predict_sign(file: UploadFile = File(...)):
     hand_landmarks = results.multi_hand_landmarks[0]
 
     for i in range(len(hand_landmarks.landmark)):
-        x_.append(hand_landmarks.landmark[i].x)
-        y_.append(hand_landmarks.landmark[i].y)
+        lm_x = hand_landmarks.landmark[i].x
+        lm_y = hand_landmarks.landmark[i].y
+        x_.append(lm_x)
+        y_.append(lm_y)
 
     for i in range(len(hand_landmarks.landmark)):
         data_aux.append(hand_landmarks.landmark[i].x - min(x_))
