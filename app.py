@@ -25,9 +25,9 @@ app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 security = HTTPBasic()
 
 # --- ADMIN CREDENTIALS ---
-ADMIN_USERNAME = "Punjan"
-ADMIN_PASSWORD = "Punjan123"
-
+# NEW (Secure from Environment Variables):
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme_local_pass")
 # --- TIMEZONE CONFIGURATION (IST) ---
 IST = timezone(timedelta(hours=5, minutes=30))
 
