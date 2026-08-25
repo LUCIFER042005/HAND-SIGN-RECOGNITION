@@ -330,7 +330,8 @@
     <div id="appSection" style="display: none;">
         <div class="user-bar">
             <span>Welcome, <b id="loggedInUser" style="color: #22c55e;">User</b></span>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                <a href="/tutorial" target="_blank" class="btn-link" style="padding: 9px 14px; font-size: 13px; font-weight: 600; text-decoration: none;">📖 ASL Chart</a>
                 <button class="btn-green" onclick="openContributeModal()">🤝 Help Train AI</button>
                 <button onclick="toggleUserPanel()">Profile</button>
                 <button onclick="handleLogout()" class="btn-danger">Logout</button>
@@ -763,7 +764,6 @@
         window.location.reload();
     }
 
-    // Locks video capture to a standard 4:3 ratio to avoid mobile coordinates distortion
     async function startWebcam() {
         try {
             currentStream = await navigator.mediaDevices.getUserMedia({
@@ -904,7 +904,6 @@
         }
     }
 
-    // Handles center-crop rendering from square or portrait mobile frames
     async function processFrame() {
         if (isProcessing || !video.videoWidth) return;
 
