@@ -358,7 +358,6 @@
                 <textarea id="reviewInput" rows="2" placeholder="Leave a review..."></textarea><br>
                 <button class="btn-green" style="margin-top:6px;" onclick="handleSubmitReview()">Submit Review</button>
 
-                <!-- MY PREVIOUS REVIEWS & DELETE LIST -->
                 <div style="margin-top:14px;">
                     <b style="font-size:12px; color:#94a3b8;">My Submitted Reviews:</b>
                     <div id="myReviewsList" style="margin-top:6px; font-size:12px;"></div>
@@ -409,7 +408,6 @@
         <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; font-weight:600;">Sign <span id="currentStepIdx">1</span> of 3:</div>
         <div id="targetSignBadge" class="target-badge">A</div>
 
-        <!-- DYNAMIC REFERENCE IMAGE -->
         <div class="sign-reference-box">
             <img id="targetSignImg" class="sign-reference-img" src="/static/signs/A.jpg" alt="Sign Reference" onerror="this.src='https://placehold.co/130x130/13161a/22c55e?text=?'">
         </div>
@@ -506,7 +504,6 @@
     let contributionHoldStart = null;
     const CONTRIB_HOLD_MS = 1500;
 
-    // --- AUTO-LOGIN RESTORATION ON PAGE LOAD ---
     function checkPersistedSession() {
         const savedUser = localStorage.getItem('slr_user');
         const savedPass = localStorage.getItem('slr_pass');
@@ -766,10 +763,16 @@
         window.location.reload();
     }
 
+    // Locks video capture to a standard 4:3 ratio to avoid mobile coordinates distortion
     async function startWebcam() {
         try {
             currentStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+                video: {
+                    facingMode: "user",
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    aspectRatio: { ideal: 1.333333 }
+                }
             });
             video.srcObject = currentStream;
             modalVideo.srcObject = currentStream;
@@ -828,10 +831,7 @@
             const target = assignedSigns[currentSignIndex];
             currentStepIdx.innerText = (currentSignIndex + 1);
             targetSignBadge.innerText = target;
-
-            // Set dynamic sign reference image
             targetSignImg.src = `/static/signs/${target}.jpg`;
-
             signInstructionText.innerText = SIGN_TIPS[target] || "Make the requested gesture clearly in front of the camera.";
             modalStatusText.style.color = "#eab308";
             modalStatusText.innerText = `Show sign '${target}' to camera...`;
@@ -904,6 +904,7 @@
         }
     }
 
+    // Handles center-crop rendering from square or portrait mobile frames
     async function processFrame() {
         if (isProcessing || !video.videoWidth) return;
 
@@ -912,7 +913,22 @@
         canvas.width = 320;
         canvas.height = 240;
 
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const vWidth = video.videoWidth;
+        const vHeight = video.videoHeight;
+        const targetAspect = 320 / 240;
+        const videoAspect = vWidth / vHeight;
+
+        let sx = 0, sy = 0, sWidth = vWidth, sHeight = vHeight;
+
+        if (videoAspect > targetAspect) {
+            sWidth = vHeight * targetAspect;
+            sx = (vWidth - sWidth) / 2;
+        } else {
+            sHeight = vWidth / targetAspect;
+            sy = (vHeight - sHeight) / 2;
+        }
+
+        ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
         canvas.toBlob(async (blob) => {
             if (!blob) {
@@ -1001,9 +1017,18 @@
         }
     }
 
-    function addSpace() { sentenceBox.innerText += " "; }
-    function backspace() { sentenceBox.innerText = sentenceBox.innerText.slice(0, -1); }
-    function clearSentence() { sentenceBox.innerText = ""; resetHoldTimer(); }
+    function addSpace() {
+        sentenceBox.innerText += " ";
+    }
+
+    function backspace() {
+        sentenceBox.innerText = sentenceBox.innerText.slice(0, -1);
+    }
+
+    function clearSentence() {
+        sentenceBox.innerText = "";
+        resetHoldTimer();
+    }
 
     fetchUserCount();
     checkPersistedSession();
