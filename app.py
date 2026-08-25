@@ -1253,9 +1253,14 @@ async def predict_sign(file: UploadFile = File(...)):
         x_.append(lm_x)
         y_.append(lm_y)
 
+    min_x, max_x = min(x_), max(x_)
+    min_y, max_y = min(y_), max(y_)
+    box_w = max(max_x - min_x, 1e-6)
+    box_h = max(max_y - min_y, 1e-6)
+
     for i in range(len(hand_landmarks.landmark)):
-        data_aux.append(hand_landmarks.landmark[i].x - min(x_))
-        data_aux.append(hand_landmarks.landmark[i].y - min(y_))
+        data_aux.append((hand_landmarks.landmark[i].x - min_x) / box_w)
+        data_aux.append((hand_landmarks.landmark[i].y - min_y) / box_h)
 
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
@@ -1281,9 +1286,9 @@ async def predict_sign(file: UploadFile = File(...)):
         "prediction": predicted_character,
         "raw_features": data_aux,
         "bbox": {
-            "x_min": min(x_),
-            "y_min": min(y_),
-            "x_max": max(x_),
-            "y_max": max(y_),
+            "x_min": min_x,
+            "y_min": min_y,
+            "x_max": max_x,
+            "y_max": max_y,
         },
     }
