@@ -84,39 +84,51 @@
             border-color: #22c55e;
         }
 
-        button, .btn-link {
-            background-color: #1e2229;
-            color: #f8fafc;
-            border: 1px solid #2d333b;
-            padding: 9px 16px;
+        /* Unified Button Architecture */
+        button, .btn-nav, .btn-link {
+            background-color: #1a1e24;
+            color: #e2e8f0;
+            border: 1px solid #2e353f;
+            padding: 8px 14px;
             cursor: pointer;
             font-size: 13px;
             font-weight: 600;
             text-decoration: none;
-            display: inline-block;
-            transition: 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            height: 36px;
+            line-height: 1;
         }
 
-        button:hover, .btn-link:hover {
-            background-color: #282e38;
+        button:hover, .btn-nav:hover, .btn-link:hover {
+            background-color: #252b34;
+            border-color: #475569;
+            color: #ffffff;
         }
 
-        .btn-green {
-            background-color: #22c55e;
+        /* Primary Call to Action Button */
+        .btn-primary {
+            background-color: #15803d;
+            border-color: #16a34a;
             color: #ffffff !important;
-            border: none;
         }
-        .btn-green:hover {
+        .btn-primary:hover {
             background-color: #16a34a;
+            border-color: #22c55e;
         }
 
+        /* Destructive / Danger Action */
         .btn-danger {
-            background-color: #2a1618;
-            border: 1px solid #ef4444;
+            background-color: #1f1416;
+            border-color: #451a1d;
             color: #f87171 !important;
         }
         .btn-danger:hover {
-            background-color: #ef4444;
+            background-color: #dc2626;
+            border-color: #ef4444;
             color: #ffffff !important;
         }
 
@@ -125,11 +137,18 @@
             justify-content: space-between;
             align-items: center;
             background: #13161a;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border: 1px solid #262b32;
             margin-bottom: 18px;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
+        }
+
+        .nav-button-group {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         #adminReplyBanner {
@@ -320,8 +339,8 @@
         <input type="text" id="username" placeholder="Username" required><br>
         <input type="password" id="password" placeholder="Password" required><br>
         <div style="margin-top: 14px; display: flex; justify-content: center; gap: 8px;">
-            <button class="btn-green" onclick="handleLogin()">Login</button>
-            <button onclick="handleRegister()">Register</button>
+            <button class="btn-primary" onclick="handleLogin()">Login</button>
+            <button class="btn-nav" onclick="handleRegister()">Register</button>
         </div>
         <p id="authMsg" style="font-size: 13px; color: #ef4444; margin-top: 10px; margin-bottom: 0;"></p>
     </div>
@@ -330,11 +349,11 @@
     <div id="appSection" style="display: none;">
         <div class="user-bar">
             <span>Welcome, <b id="loggedInUser" style="color: #22c55e;">User</b></span>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-                <a href="/tutorial" class="btn-link" style="padding: 9px 14px; font-size: 13px; font-weight: 600; text-decoration: none;">📖 Tutorial</a>
-                <button class="btn-green" onclick="openContributeModal()">🤝 Help Train AI</button>
-                <button onclick="toggleUserPanel()">Profile</button>
-                <button onclick="handleLogout()" class="btn-danger">Logout</button>
+            <div class="nav-button-group">
+                <a href="/tutorial" class="btn-nav">📖 ASL Chart</a>
+                <button class="btn-nav" onclick="openContributeModal()">🤝 Help Train AI</button>
+                <button class="btn-nav" onclick="toggleUserPanel()">⚙️ Profile</button>
+                <button class="btn-danger" onclick="handleLogout()">Logout</button>
             </div>
         </div>
 
@@ -351,13 +370,13 @@
                 <b style="font-size:13px; color:#94a3b8;">Change Password</b><br>
                 <input type="password" id="oldPassInput" placeholder="Old Password"><br>
                 <input type="password" id="newPassInput" placeholder="New Password"><br>
-                <button class="btn-green" style="margin-top:6px;" onclick="handleChangePassword()">Update Password</button>
+                <button class="btn-primary" style="margin-top:6px;" onclick="handleChangePassword()">Update Password</button>
             </div>
             <hr style="border: 0; border-top: 1px solid #262b32; margin: 16px 0;">
             <div>
                 <b style="font-size:13px; color:#94a3b8;">Submit Feedback / Review</b><br>
                 <textarea id="reviewInput" rows="2" placeholder="Leave a review..."></textarea><br>
-                <button class="btn-green" style="margin-top:6px;" onclick="handleSubmitReview()">Submit Review</button>
+                <button class="btn-primary" style="margin-top:6px;" onclick="handleSubmitReview()">Submit Review</button>
 
                 <div style="margin-top:14px;">
                     <b style="font-size:12px; color:#94a3b8;">My Submitted Reviews:</b>
@@ -386,9 +405,9 @@
             <div id="sentenceBox" class="sentence-box"></div>
 
             <div class="controls">
-                <button class="btn-green" onclick="addCurrentSign()">Add Sign</button>
-                <button onclick="addSpace()">Space [ ]</button>
-                <button onclick="backspace()">Backspace ⌫</button>
+                <button class="btn-primary" onclick="addCurrentSign()">Add Sign</button>
+                <button class="btn-nav" onclick="addSpace()">Space [ ]</button>
+                <button class="btn-nav" onclick="backspace()">Backspace ⌫</button>
                 <button class="btn-danger" onclick="clearSentence()">Clear All</button>
             </div>
         </div>
@@ -560,7 +579,7 @@
                         <span style="color:#cbd5e1;">"${r.review}"</span>
                         ${r.admin_reply ? `<div style="color:#22c55e; font-size:11px; margin-top:2px;"><b>Admin Reply:</b> "${r.admin_reply}"</div>` : ''}
                     </div>
-                    <button class="btn-danger" style="padding:2px 6px; font-size:10px;" onclick="deleteMyReview(${r.id})">🗑️ Delete</button>
+                    <button class="btn-danger" style="padding:2px 6px; font-size:10px; height: auto;" onclick="deleteMyReview(${r.id})">🗑️ Delete</button>
                 </div>
                 `;
             });
