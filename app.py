@@ -25,9 +25,9 @@ app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 security = HTTPBasic()
 
 # --- ADMIN CREDENTIALS ---
-# NEW (Secure from Environment Variables):
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme_local_pass")
+
 # --- TIMEZONE CONFIGURATION (IST) ---
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -1241,14 +1241,28 @@ async def predict_sign(file: UploadFile = File(...)):
             "message": "No hand landmarks detected",
         }
 
-    data_aux = []
+    hand_landmarks = results.multi_hand_landmarks[0]
+
+    # --- HANDEDNESS & LEFT-HAND MIRRORING ---
+    # Because frontend mirrors the feed (scaleX(-1)), MediaPipe's raw "Right" label corresponds
+    # to the user's physical Left hand, and "Left" corresponds to the user's physical Right hand.
+    is_physical_left_hand = False
+    detected_hand_label = "Right"
+    if results.multi_handedness and len(results.multi_handedness) > 0:
+        raw_label = results.multi_handedness[0].classification[0].label
+        if raw_label == "Right":
+            is_physical_left_hand = True
+            detected_hand_label = "Left"
+        else:
+            detected_hand_label = "Right"
+
     x_ = []
     y_ = []
 
-    hand_landmarks = results.multi_hand_landmarks[0]
-
+    # Extract coordinates; mirror horizontal axis if physical left hand was presented
     for i in range(len(hand_landmarks.landmark)):
-        lm_x = hand_landmarks.landmark[i].x
+        raw_x = hand_landmarks.landmark[i].x
+        lm_x = (1.0 - raw_x) if is_physical_left_hand else raw_x
         lm_y = hand_landmarks.landmark[i].y
         x_.append(lm_x)
         y_.append(lm_y)
@@ -1258,9 +1272,10 @@ async def predict_sign(file: UploadFile = File(...)):
     box_w = max(max_x - min_x, 1e-6)
     box_h = max(max_y - min_y, 1e-6)
 
-    for i in range(len(hand_landmarks.landmark)):
-        data_aux.append((hand_landmarks.landmark[i].x - min_x) / box_w)
-        data_aux.append((hand_landmarks.landmark[i].y - min_y) / box_h)
+    data_aux = []
+    for x, y in zip(x_, y_):
+        data_aux.append((x - min_x) / box_w)
+        data_aux.append((y - min_y) / box_h)
 
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
@@ -1284,6 +1299,7 @@ async def predict_sign(file: UploadFile = File(...)):
     return {
         "success": True,
         "prediction": predicted_character,
+        "detected_hand": detected_hand_label,
         "raw_features": data_aux,
         "bbox": {
             "x_min": min_x,
