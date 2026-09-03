@@ -185,10 +185,40 @@
             height: auto;
             transform: scaleX(-1);
             display: block;
+            filter: contrast(1.05) brightness(1.05);
         }
 
         canvas {
             display: none;
+        }
+
+        /* Live Hand Distance Badge */
+        .distance-indicator-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .distance-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #262b32;
+            background: #13161a;
+            color: #94a3b8;
+            transition: all 0.25s ease;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50% !important;
+            background: #475569;
+            transition: background 0.25s ease;
         }
 
         .prediction-box {
@@ -395,6 +425,14 @@
         </div>
         <canvas id="canvas"></canvas>
 
+        <!-- LIVE DISTANCE INDICATOR ("GREEN SIGNAL") -->
+        <div class="distance-indicator-container">
+            <div id="distancePill" class="distance-pill">
+                <span id="distanceDot" class="status-dot"></span>
+                <span id="distanceText">Detecting hand...</span>
+            </div>
+        </div>
+
         <div class="prediction-box">
             Recognized Sign: <span id="currentSign" class="predicted-char">-</span>
             <div id="statusIndicator" class="status-indicator">Sentence Builder OFF. Press 'S' to toggle.</div>
@@ -471,6 +509,10 @@
     const sentenceBox = document.getElementById('sentenceBox');
     const sentenceBuilderToggle = document.getElementById('sentenceBuilderToggle');
     const statusIndicator = document.getElementById('statusIndicator');
+
+    const distancePill = document.getElementById('distancePill');
+    const distanceDot = document.getElementById('distanceDot');
+    const distanceText = document.getElementById('distanceText');
 
     const contributeModal = document.getElementById('contributeModal');
     const targetSignBadge = document.getElementById('targetSignBadge');
@@ -790,7 +832,8 @@
                     facingMode: "user",
                     width: { ideal: 640 },
                     height: { ideal: 480 },
-                    aspectRatio: { ideal: 1.333333 }
+                    aspectRatio: { ideal: 1.333333 },
+                    frameRate: { ideal: 30, max: 30 }
                 }
             });
             video.srcObject = currentStream;
@@ -818,6 +861,30 @@
             statusIndicator.innerText = "Sentence Builder ACTIVE. Hold sign steady to append.";
         } else {
             statusIndicator.innerText = "Sentence Builder OFF. Press 'S' to start.";
+        }
+    }
+
+    function updateDistanceUI(status, message) {
+        if (status === "perfect") {
+            distanceDot.style.background = "#22c55e"; // Green
+            distanceText.style.color = "#22c55e";
+            distancePill.style.borderColor = "#22c55e";
+            distanceText.innerText = "✓ " + message;
+        } else if (status === "too_far") {
+            distanceDot.style.background = "#eab308"; // Yellow
+            distanceText.style.color = "#eab308";
+            distancePill.style.borderColor = "#eab308";
+            distanceText.innerText = "⚠️ " + message;
+        } else if (status === "too_close" || status === "recenter") {
+            distanceDot.style.background = "#ef4444"; // Red
+            distanceText.style.color = "#ef4444";
+            distancePill.style.borderColor = "#ef4444";
+            distanceText.innerText = "⚠️ " + message;
+        } else {
+            distanceDot.style.background = "#475569";
+            distanceText.style.color = "#94a3b8";
+            distancePill.style.borderColor = "#262b32";
+            distanceText.innerText = message || "Detecting hand...";
         }
     }
 
@@ -931,22 +998,8 @@
         canvas.width = 320;
         canvas.height = 240;
 
-        const vWidth = video.videoWidth;
-        const vHeight = video.videoHeight;
-        const targetAspect = 320 / 240;
-        const videoAspect = vWidth / vHeight;
-
-        let sx = 0, sy = 0, sWidth = vWidth, sHeight = vHeight;
-
-        if (videoAspect > targetAspect) {
-            sWidth = vHeight * targetAspect;
-            sx = (vWidth - sWidth) / 2;
-        } else {
-            sHeight = vWidth / targetAspect;
-            sy = (vHeight - sHeight) / 2;
-        }
-
-        ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+        // Direct full draw scale without aggressive cropping
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         canvas.toBlob(async (blob) => {
             if (!blob) {
@@ -961,7 +1014,10 @@
                 const response = await fetch('/predict', { method: 'POST', body: formData });
                 const data = await response.json();
 
-                if (data.success && data.prediction) {
+                // Update the Live Distance Indicator
+                updateDistanceUI(data.distance_status, data.distance_message);
+
+                if (data.success && data.prediction && data.prediction !== "-") {
                     currentPredictedSign = data.prediction;
                     currentSignSpan.innerText = currentPredictedSign;
                     latestRawFeatures = data.raw_features || null;
