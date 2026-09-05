@@ -11,6 +11,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, B
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import mediapipe as mp
 import numpy as np
@@ -72,6 +73,11 @@ INDEX_PATH = os.path.join(BASE_DIR, "index.html")
 TUTORIAL_PATH = os.path.join(BASE_DIR, "tutorial.html")
 MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 DATA_PICKLE_PATH = os.path.join(BASE_DIR, "data.pickle")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(STATIC_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_USER = os.getenv("MYSQL_USER")
@@ -1216,6 +1222,20 @@ def health_check():
     return {"status": "online", "model_loaded": model is not None, "golden_centroids_loaded": len(GOLDEN_CENTROIDS)}
 
 
+@app.get("/debug-static")
+def debug_static():
+    signs_dir = os.path.join(BASE_DIR, "static", "signs")
+    exists = os.path.exists(signs_dir)
+    files = os.listdir(signs_dir) if exists else []
+    return {
+        "base_dir": BASE_DIR,
+        "signs_dir": signs_dir,
+        "folder_exists": exists,
+        "files_found": files,
+        "file_count": len(files)
+    }
+
+
 @app.post("/predict")
 async def predict_sign(file: UploadFile = File(...)):
     if not model:
@@ -1242,8 +1262,10 @@ async def predict_sign(file: UploadFile = File(...)):
     hand_landmarks = results.multi_hand_landmarks[0]
 
     for i in range(len(hand_landmarks.landmark)):
-        x_.append(hand_landmarks.landmark[i].x)
-        y_.append(hand_landmarks.landmark[i].y)
+        lm_x = hand_landmarks.landmark[i].x
+        lm_y = hand_landmarks.landmark[i].y
+        x_.append(lm_x)
+        y_.append(lm_y)
 
     min_x, max_x = min(x_), max(x_)
     min_y, max_y = min(y_), max(y_)
