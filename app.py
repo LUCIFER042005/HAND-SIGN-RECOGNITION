@@ -11,7 +11,6 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, status, B
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import mediapipe as mp
 import numpy as np
@@ -73,11 +72,6 @@ INDEX_PATH = os.path.join(BASE_DIR, "index.html")
 TUTORIAL_PATH = os.path.join(BASE_DIR, "tutorial.html")
 MODEL_PATH = os.path.join(BASE_DIR, "model.p")
 DATA_PICKLE_PATH = os.path.join(BASE_DIR, "data.pickle")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
-
-if not os.path.exists(STATIC_DIR):
-    os.makedirs(STATIC_DIR, exist_ok=True)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_USER = os.getenv("MYSQL_USER")
@@ -137,6 +131,7 @@ def compute_golden_centroids():
 
 
 def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.80) -> tuple[bool, float]:
+    """Balanced validation: Rejects garbage/anomalies (below 0.80) while preserving genuine human variations."""
     global model, GOLDEN_CENTROIDS
 
     if len(landmarks) != 42:
@@ -149,11 +144,13 @@ def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 
     else:
         return False, 0.0
 
+    # 1. Cosine similarity against Golden Centroid (0.80 threshold accommodates real hand shapes)
     cos_sim = 1.0
     if sign_label in GOLDEN_CENTROIDS:
         target_vec = GOLDEN_CENTROIDS[sign_label]
         cos_sim = float(np.dot(target_vec, cand_norm))
 
+    # Reject if geometry is completely off (less than 80% match to target pose)
     if cos_sim < threshold:
         return False, cos_sim
 
@@ -633,6 +630,7 @@ def trigger_retrain(background_tasks: BackgroundTasks, admin: str = Depends(auth
 
 @app.post("/admin/clean-db")
 def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
+    """Balanced Janitor: Only purges true anomalies (< 80% geometric match)."""
     if not MYSQL_HOST:
         raise HTTPException(status_code=500, detail="Database credentials missing on server.")
     try:
@@ -1248,19 +1246,12 @@ async def predict_sign(file: UploadFile = File(...)):
     hand_landmarks = results.multi_hand_landmarks[0]
 
     for i in range(len(hand_landmarks.landmark)):
-        lm_x = hand_landmarks.landmark[i].x
-        lm_y = hand_landmarks.landmark[i].y
-        x_.append(lm_x)
-        y_.append(lm_y)
-
-    min_x, max_x = min(x_), max(x_)
-    min_y, max_y = min(y_), max(y_)
-    box_w = max(max_x - min_x, 1e-6)
-    box_h = max(max_y - min_y, 1e-6)
+        x_.append(hand_landmarks.landmark[i].x)
+        y_.append(hand_landmarks.landmark[i].y)
 
     for i in range(len(hand_landmarks.landmark)):
-        data_aux.append((hand_landmarks.landmark[i].x - min_x) / box_w)
-        data_aux.append((hand_landmarks.landmark[i].y - min_y) / box_h)
+        data_aux.append(hand_landmarks.landmark[i].x - min(x_))
+        data_aux.append(hand_landmarks.landmark[i].y - min(y_))
 
     prediction = model.predict([np.asarray(data_aux)])
     predicted_character = str(prediction[0])
@@ -1286,9 +1277,9 @@ async def predict_sign(file: UploadFile = File(...)):
         "prediction": predicted_character,
         "raw_features": data_aux,
         "bbox": {
-            "x_min": min_x,
-            "y_min": min_y,
-            "x_max": max_x,
-            "y_max": max_y,
+            "x_min": min(x_),
+            "y_min": min(y_),
+            "x_max": max(x_),
+            "y_max": max(y_),
         },
     }
