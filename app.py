@@ -25,8 +25,8 @@ app = FastAPI(title="Hand Sign Recognition API", version="1.0")
 security = HTTPBasic()
 
 # --- ADMIN CREDENTIALS ---
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme_local_pass")
+ADMIN_USERNAME = "Punjan"
+ADMIN_PASSWORD = "Punjan123"
 
 # --- TIMEZONE CONFIGURATION (IST) ---
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -1237,78 +1237,33 @@ async def predict_sign(file: UploadFile = File(...)):
         return {
             "success": False,
             "prediction": None,
-            "confidence": 0.0,
-            "distance_status": "no_hand",
-            "distance_message": "No hand detected",
             "raw_features": [],
             "message": "No hand landmarks detected",
         }
 
+    data_aux = []
+    x_ = []
+    y_ = []
+
     hand_landmarks = results.multi_hand_landmarks[0]
 
-    # Coordinate Extraction
-    x_raw = [lm.x for lm in hand_landmarks.landmark]
-    y_raw = [lm.y for lm in hand_landmarks.landmark]
+    for i in range(len(hand_landmarks.landmark)):
+        lm_x = hand_landmarks.landmark[i].x
+        lm_y = hand_landmarks.landmark[i].y
+        x_.append(lm_x)
+        y_.append(lm_y)
 
-    min_x, max_x = min(x_raw), max(x_raw)
-    min_y, max_y = min(y_raw), max(y_raw)
+    min_x, max_x = min(x_), max(x_)
+    min_y, max_y = min(y_), max(y_)
+    box_w = max(max_x - min_x, 1e-6)
+    box_h = max(max_y - min_y, 1e-6)
 
-    box_w = max_x - min_x
-    box_h = max_y - min_y
-    safe_w = max(box_w, 1e-6)
-    safe_h = max(box_h, 1e-6)
+    for i in range(len(hand_landmarks.landmark)):
+        data_aux.append((hand_landmarks.landmark[i].x - min_x) / box_w)
+        data_aux.append((hand_landmarks.landmark[i].y - min_y) / box_h)
 
-    # Hand Coverage Area calculation
-    hand_coverage = box_w * box_h
-
-    # --- DISTANCE & POSITION CALCULATION ("GREEN SIGNAL") ---
-    # Hand should occupy roughly between 8% and 42% of the frame and not clip the edges
-    if hand_coverage < 0.075:
-        distance_status = "too_far"
-        distance_message = "Move hand closer"
-    elif hand_coverage > 0.45:
-        distance_status = "too_close"
-        distance_message = "Move hand back"
-    elif min_x < 0.03 or max_x > 0.97 or min_y < 0.03 or max_y > 0.97:
-        distance_status = "recenter"
-        distance_message = "Center your hand"
-    else:
-        distance_status = "perfect"
-        distance_message = "Distance Perfect"
-
-    # Normalized Features for Random Forest
-    data_aux = []
-    for lm in hand_landmarks.landmark:
-        data_aux.append((lm.x - min_x) / safe_w)
-        data_aux.append((lm.y - min_y) / safe_h)
-
-    # Classification with Probability / Confidence Thresholding
-    try:
-        probabilities = model.predict_proba([np.asarray(data_aux)])[0]
-        max_prob = float(np.max(probabilities))
-        pred_idx = int(np.argmax(probabilities))
-        predicted_character = str(model.classes_[pred_idx])
-    except Exception:
-        pred = model.predict([np.asarray(data_aux)])
-        predicted_character = str(pred[0])
-        max_prob = 1.0
-
-    # If the hand is too far, badly angled, or uncertain, don't guess blindly
-    if max_prob < 0.60 or distance_status in ["too_far", "too_close"]:
-        return {
-            "success": True,
-            "prediction": "-",
-            "confidence": round(max_prob, 2),
-            "distance_status": distance_status,
-            "distance_message": distance_message,
-            "raw_features": data_aux,
-            "bbox": {
-                "x_min": min_x,
-                "y_min": min_y,
-                "x_max": max_x,
-                "y_max": max_y,
-            },
-        }
+    prediction = model.predict([np.asarray(data_aux)])
+    predicted_character = str(prediction[0])
 
     if MYSQL_HOST:
         try:
@@ -1329,9 +1284,6 @@ async def predict_sign(file: UploadFile = File(...)):
     return {
         "success": True,
         "prediction": predicted_character,
-        "confidence": round(max_prob, 2),
-        "distance_status": distance_status,
-        "distance_message": distance_message,
         "raw_features": data_aux,
         "bbox": {
             "x_min": min_x,
