@@ -860,16 +860,8 @@
 
         const targetSign = assignedSigns[currentSignIndex];
 
-        if (currentPredictedSign !== targetSign) {
-            contributionHoldStart = null;
-            captureProgressFill.style.width = '0%';
-            modalStatusText.style.color = "#ef4444";
-            modalStatusText.innerText = `⚠️ Pose as '${targetSign}' (Currently seeing: '${currentPredictedSign || "None"}')`;
-            return;
-        }
-
         modalStatusText.style.color = "#22c55e";
-        modalStatusText.innerText = `✓ Match detected! Hold steady...`;
+        modalStatusText.innerText = `Holding pose for '${targetSign}'... Keep steady!`;
 
         const now = Date.now();
         if (!contributionHoldStart) {

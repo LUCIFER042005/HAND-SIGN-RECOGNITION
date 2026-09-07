@@ -136,7 +136,7 @@ def compute_golden_centroids():
         print(f"Error computing golden centroids: {e}")
 
 
-def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.80) -> tuple[bool, float]:
+def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 0.65) -> tuple[bool, float]:
     global model, GOLDEN_CENTROIDS
 
     if len(landmarks) != 42:
@@ -153,11 +153,11 @@ def is_sample_clean(sign_label: str, landmarks: list[float], threshold: float = 
     if sign_label in GOLDEN_CENTROIDS:
         target_vec = GOLDEN_CENTROIDS[sign_label]
         cos_sim = float(np.dot(target_vec, cand_norm))
+        if cos_sim < threshold:
+            return False, cos_sim
+        return True, cos_sim
 
-    if cos_sim < threshold:
-        return False, cos_sim
-
-    return True, cos_sim
+    return True, 1.0
 
 
 def init_db():
@@ -515,11 +515,11 @@ def submit_hand_sample(data: SignContribution):
     if len(data.landmarks) != 42:
         raise HTTPException(status_code=400, detail="Invalid landmark array length. Expected 42 floats.")
 
-    is_valid, sim_score = is_sample_clean(data.sign_label, data.landmarks, threshold=0.80)
+    is_valid, sim_score = is_sample_clean(data.sign_label, data.landmarks, threshold=0.65)
     if not is_valid:
         raise HTTPException(
             status_code=400,
-            detail=f"Sample rejected by Self-Cleaning AI. Match score: {sim_score * 100:.1f}% (Required: ≥80%). Please hold the exact sign clearly."
+            detail=f"Sample rejected by Self-Cleaning AI. Match score: {sim_score * 100:.1f}% (Required: ≥65%). Please hold the exact sign clearly."
         )
 
     if not MYSQL_HOST:
@@ -644,7 +644,7 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
         purged_ids = []
         for r in rows:
             lms = json.loads(r["landmarks"])
-            is_valid, _ = is_sample_clean(r["sign_label"], lms, threshold=0.80)
+            is_valid, _ = is_sample_clean(r["sign_label"], lms, threshold=0.65)
             if not is_valid:
                 purged_ids.append(r["id"])
 
