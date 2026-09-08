@@ -641,12 +641,26 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
         cursor.execute("SELECT id, sign_label, landmarks FROM hand_samples")
         rows = cursor.fetchall()
 
-        purged_ids = []
+        samples_by_sign = {}
         for r in rows:
-            lms = json.loads(r["landmarks"])
-            is_valid, _ = is_sample_clean(r["sign_label"], lms, threshold=0.65)
-            if not is_valid:
-                purged_ids.append(r["id"])
+            lbl = r["sign_label"]
+            samples_by_sign.setdefault(lbl, []).append(r)
+
+        purged_ids = []
+        for lbl, sample_list in samples_by_sign.items():
+            if len(sample_list) >= 4:
+                lms_vectors = [json.loads(s["landmarks"]) for s in sample_list]
+                iso = IsolationForest(contamination=0.10, random_state=42)
+                preds = iso.fit_predict(lms_vectors)
+                for idx, pred in enumerate(preds):
+                    if pred == -1:
+                        purged_ids.append(sample_list[idx]["id"])
+            else:
+                for s in sample_list:
+                    lms = json.loads(s["landmarks"])
+                    is_valid, _ = is_sample_clean(lbl, lms, threshold=0.65)
+                    if not is_valid:
+                        purged_ids.append(s["id"])
 
         if purged_ids:
             format_strings = ','.join(['%s'] * len(purged_ids))
@@ -1115,15 +1129,19 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                 }}
 
                 async function cleanDatabase() {{
-                    if (confirm("Run Self-Cleaning AI Janitor on all stored samples?")) {{
-                        try {{
-                            const res = await fetch('/admin/clean-db', {{ method: 'POST' }});
-                            const data = await res.json();
-                            alert("Janitor complete!\\nScanned: " + data.scanned_total + " samples\\nAuto-Purged Outliers: " + data.purged_junk_count + "\\nRetained Valid: " + data.retained_valid_count);
-                            window.location.reload();
-                        }} catch(e) {{
-                            alert("Error running DB Janitor.");
-                        }}
+                    const btn = event.target;
+                    btn.innerText = "⏳ Running Janitor...";
+                    btn.disabled = true;
+                    try {{
+                        const res = await fetch('/admin/clean-db', {{ method: 'POST' }});
+                        const data = await res.json();
+                        alert("Janitor complete!\\nScanned: " + data.scanned_total + " samples\\nAuto-Purged Outliers: " + data.purged_junk_count + "\\nRetained Valid: " + data.retained_valid_count);
+                        window.location.reload();
+                    }} catch(e) {{
+                        alert("Error running DB Janitor.");
+                    }} finally {{
+                        btn.innerText = "🧹 Run AI DB Janitor";
+                        btn.disabled = false;
                     }}
                 }}
 
