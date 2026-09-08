@@ -638,7 +638,7 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, sign_label, landmarks FROM hand_samples")
+        cursor.execute("SELECT id, username, sign_label, landmarks FROM hand_samples")
         rows = cursor.fetchall()
 
         samples_by_sign = {}
@@ -646,21 +646,31 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
             lbl = r["sign_label"]
             samples_by_sign.setdefault(lbl, []).append(r)
 
+        purged_records = []
         purged_ids = []
+
         for lbl, sample_list in samples_by_sign.items():
-            if len(sample_list) >= 4:
-                lms_vectors = [json.loads(s["landmarks"]) for s in sample_list]
-                iso = IsolationForest(contamination=0.10, random_state=42)
-                preds = iso.fit_predict(lms_vectors)
-                for idx, pred in enumerate(preds):
-                    if pred == -1:
-                        purged_ids.append(sample_list[idx]["id"])
-            else:
+            # If golden centroid exists, use strict absolute similarity threshold
+            if lbl in GOLDEN_CENTROIDS:
                 for s in sample_list:
                     lms = json.loads(s["landmarks"])
-                    is_valid, _ = is_sample_clean(lbl, lms, threshold=0.65)
+                    is_valid, _ = is_sample_clean(lbl, lms, threshold=0.60)
                     if not is_valid:
                         purged_ids.append(s["id"])
+                        purged_records.append(f"Sign '{lbl}' from @{s['username']}")
+            # For signs without a baseline centroid, use safe IsolationForest
+            elif len(sample_list) >= 6:
+                lms_vectors = [json.loads(s["landmarks"]) for s in sample_list]
+                # contamination='auto' prevents forced repeating 10% trimmings
+                iso = IsolationForest(contamination='auto', random_state=42)
+                iso.fit(lms_vectors)
+                scores = iso.decision_function(lms_vectors)
+                for idx, score in enumerate(scores):
+                    # Only purge genuine statistical outliers
+                    if score < -0.15:
+                        bad_sample = sample_list[idx]
+                        purged_ids.append(bad_sample["id"])
+                        purged_records.append(f"Sign '{lbl}' from @{bad_sample['username']}")
 
         if purged_ids:
             format_strings = ','.join(['%s'] * len(purged_ids))
@@ -671,7 +681,8 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
             "success": True,
             "scanned_total": len(rows),
             "purged_junk_count": len(purged_ids),
-            "retained_valid_count": len(rows) - len(purged_ids)
+            "retained_valid_count": len(rows) - len(purged_ids),
+            "purged_details": purged_records
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -1135,7 +1146,21 @@ def get_all_users_dashboard(admin: str = Depends(authenticate_admin)):
                     try {{
                         const res = await fetch('/admin/clean-db', {{ method: 'POST' }});
                         const data = await res.json();
-                        alert("Janitor complete!\\nScanned: " + data.scanned_total + " samples\\nAuto-Purged Outliers: " + data.purged_junk_count + "\\nRetained Valid: " + data.retained_valid_count);
+
+                        let detailsMsg = "";
+                        if (data.purged_details && data.purged_details.length > 0) {{
+                            detailsMsg = "\\n\\n🗑️ Purged Items:\\n• " + data.purged_details.join("\\n• ");
+                        }} else {{
+                            detailsMsg = "\\n\\n✨ No junk found! All community samples are clean.";
+                        }}
+
+                        alert(
+                            "Janitor complete!\\n" +
+                            "Scanned: " + data.scanned_total + " samples\\n" +
+                            "Auto-Purged Outliers: " + data.purged_junk_count + "\\n" +
+                            "Retained Valid: " + data.retained_valid_count +
+                            detailsMsg
+                        );
                         window.location.reload();
                     }} catch(e) {{
                         alert("Error running DB Janitor.");
