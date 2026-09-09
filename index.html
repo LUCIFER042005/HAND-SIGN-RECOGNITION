@@ -16,7 +16,7 @@
             background-color: #121417;
             color: #f8fafc;
             margin: 0;
-            padding: 30px 15px;
+            padding: 20px 12px;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -28,13 +28,13 @@
             max-width: 600px;
             margin: auto;
             background: #181b20;
-            padding: 28px;
+            padding: 24px;
             border: 1px solid #262b32;
             box-shadow: 0 12px 35px rgba(0,0,0,0.45);
         }
 
         h1 {
-            font-size: 26px;
+            font-size: 24px;
             font-weight: 700;
             color: #ffffff;
             margin-top: 0;
@@ -44,7 +44,7 @@
         .subtitle {
             font-size: 13px;
             color: #94a3b8;
-            margin-bottom: 22px;
+            margin-bottom: 20px;
         }
 
         .community-badge {
@@ -172,6 +172,8 @@
         .video-wrapper {
             position: relative;
             width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
             overflow: hidden;
             border: 1px solid #262b32;
             background-color: #000;
@@ -182,6 +184,7 @@
             height: auto;
             transform: scaleX(-1);
             display: block;
+            object-fit: cover;
         }
 
         canvas {
@@ -264,7 +267,7 @@
         .modal-camera-box {
             position: relative;
             width: 100%;
-            max-width: 320px;
+            max-width: 280px;
             height: 200px;
             margin: 10px auto;
             border: 1px solid #2d333b;
@@ -388,7 +391,7 @@
         </div>
 
         <div class="video-wrapper">
-            <video id="webcam" autoplay playsinline></video>
+            <video id="webcam" autoplay playsinline muted></video>
         </div>
         <canvas id="canvas"></canvas>
 
@@ -782,18 +785,29 @@
 
     async function startWebcam() {
         try {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+            // Uses flexible ideal constraints to avoid distortion on mobile portrait orientations
             currentStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: "user",
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    aspectRatio: { ideal: 1.333333 }
-                }
+                    width: { ideal: 720 },
+                    height: { ideal: 720 }
+                },
+                audio: false
             });
             video.srcObject = currentStream;
             modalVideo.srcObject = currentStream;
         } catch (err) {
-            alert("Error accessing camera: " + err.message);
+            console.warn("Retrying default video fallback:", err);
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = currentStream;
+                modalVideo.srcObject = currentStream;
+            } catch (fallbackErr) {
+                alert("Error accessing camera: " + fallbackErr.message);
+            }
         }
     }
 
@@ -913,29 +927,24 @@
     }
 
     async function processFrame() {
-        if (isProcessing || !video.videoWidth) return;
+        if (isProcessing || !video.videoWidth || !video.videoHeight) return;
 
         isProcessing = true;
         const ctx = canvas.getContext('2d');
-        canvas.width = 320;
-        canvas.height = 240;
+
+        // 1:1 square canvas prevents aspect-ratio squeeze on both mobile portrait and laptop landscape
+        canvas.width = 256;
+        canvas.height = 256;
 
         const vWidth = video.videoWidth;
         const vHeight = video.videoHeight;
-        const targetAspect = 320 / 240;
-        const videoAspect = vWidth / vHeight;
 
-        let sx = 0, sy = 0, sWidth = vWidth, sHeight = vHeight;
+        // Extract center square crop from the raw camera stream
+        const squareDim = Math.min(vWidth, vHeight);
+        const sx = (vWidth - squareDim) / 2;
+        const sy = (vHeight - squareDim) / 2;
 
-        if (videoAspect > targetAspect) {
-            sWidth = vHeight * targetAspect;
-            sx = (vWidth - sWidth) / 2;
-        } else {
-            sHeight = vWidth / targetAspect;
-            sy = (vHeight - sHeight) / 2;
-        }
-
-        ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, sx, sy, squareDim, squareDim, 0, 0, canvas.width, canvas.height);
 
         canvas.toBlob(async (blob) => {
             if (!blob) {
