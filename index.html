@@ -408,6 +408,7 @@
                 <button class="btn-primary" onclick="addCurrentSign()">Add Sign</button>
                 <button class="btn-nav" onclick="addSpace()">Space [ ]</button>
                 <button class="btn-nav" onclick="backspace()">Backspace ⌫</button>
+                <button class="btn-nav" onclick="toggleMirroring()">🔄 Flip Camera</button>
                 <button class="btn-danger" onclick="clearSentence()">Clear All</button>
             </div>
         </div>
@@ -523,6 +524,15 @@
     let currentSignIndex = 0;
     let contributionHoldStart = null;
     const CONTRIB_HOLD_MS = 1500;
+
+    // Detect mobile device automatically, allow manual toggle
+    const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    let shouldMirrorFrame = isMobileDevice;
+
+    function toggleMirroring() {
+        shouldMirrorFrame = !shouldMirrorFrame;
+        statusIndicator.innerText = `Camera coordinate flip: ${shouldMirrorFrame ? 'ACTIVE' : 'OFF'}`;
+    }
 
     function checkPersistedSession() {
         const savedUser = localStorage.getItem('slr_user');
@@ -788,7 +798,7 @@
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
             }
-            // Uses flexible ideal constraints to avoid distortion on mobile portrait orientations
+            // Standardize resolution across desktop and mobile devices
             currentStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: "user",
@@ -932,19 +942,28 @@
         isProcessing = true;
         const ctx = canvas.getContext('2d');
 
-        // 1:1 square canvas prevents aspect-ratio squeeze on both mobile portrait and laptop landscape
+        // 1:1 square canvas prevents aspect-ratio squeeze
         canvas.width = 256;
         canvas.height = 256;
 
         const vWidth = video.videoWidth;
         const vHeight = video.videoHeight;
 
-        // Extract center square crop from the raw camera stream
+        // Center square crop
         const squareDim = Math.min(vWidth, vHeight);
         const sx = (vWidth - squareDim) / 2;
         const sy = (vHeight - squareDim) / 2;
 
+        ctx.save();
+
+        // Horizontal flip for mobile devices or manual toggle to match laptop coordinates
+        if (shouldMirrorFrame) {
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+        }
+
         ctx.drawImage(video, sx, sy, squareDim, squareDim, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
 
         canvas.toBlob(async (blob) => {
             if (!blob) {
