@@ -650,7 +650,6 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
         purged_ids = []
 
         for lbl, sample_list in samples_by_sign.items():
-            # If golden centroid exists, use strict absolute similarity threshold
             if lbl in GOLDEN_CENTROIDS:
                 for s in sample_list:
                     lms = json.loads(s["landmarks"])
@@ -658,15 +657,12 @@ def auto_purge_junk_db(admin: str = Depends(authenticate_admin)):
                     if not is_valid:
                         purged_ids.append(s["id"])
                         purged_records.append(f"Sign '{lbl}' from @{s['username']}")
-            # For signs without a baseline centroid, use safe IsolationForest
             elif len(sample_list) >= 6:
                 lms_vectors = [json.loads(s["landmarks"]) for s in sample_list]
-                # contamination='auto' prevents forced repeating 10% trimmings
                 iso = IsolationForest(contamination='auto', random_state=42)
                 iso.fit(lms_vectors)
                 scores = iso.decision_function(lms_vectors)
                 for idx, score in enumerate(scores):
-                    # Only purge genuine statistical outliers
                     if score < -0.15:
                         bad_sample = sample_list[idx]
                         purged_ids.append(bad_sample["id"])
@@ -1276,6 +1272,20 @@ def debug_static():
         "folder_exists": exists,
         "files_found": files,
         "file_count": len(files)
+    }
+
+
+@app.post("/debug-inspect")
+async def debug_inspect(file: UploadFile = File(...)):
+    contents = await file.read()
+    image = Image.open(io.BytesIO(contents)).convert("RGB")
+    dest_path = os.path.join(STATIC_DIR, "phone_test.jpg")
+    image.save(dest_path)
+    return {
+        "saved": True,
+        "url": "/static/phone_test.jpg",
+        "dimensions": f"{image.width}x{image.height}",
+        "timestamp": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
     }
 
 
